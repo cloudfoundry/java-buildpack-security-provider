@@ -18,37 +18,39 @@ package org.cloudfoundry.security;
 
 import org.junit.Test;
 
+import javax.net.ssl.TrustManagerFactory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.security.NoSuchAlgorithmException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public final class FileWatchingX509TrustManagerTest {
+public final class FileWatchingX509ExtendedTrustManagerTest {
 
     @Test
-    public void initializedWithWatchedFile() throws IOException {
+    public void initializedWithWatchedFile() throws IOException, NoSuchAlgorithmException {
         Path watchedFile = getWatchedFile();
-        Files.copy(Paths.get("src/test/resources/darwin-48.pem"), watchedFile);
+        Files.copy(Paths.get("src/test/resources/server-certificates-48.pem"), watchedFile);
 
-        FileWatchingX509TrustManager trustManager = new FileWatchingX509TrustManager("PKIX", watchedFile);
+        FileWatchingX509ExtendedTrustManager trustManager = new FileWatchingX509ExtendedTrustManager(watchedFile, TrustManagerFactory.getInstance("PKIX"));
 
         assertThat(trustManager.getAcceptedIssuers()).hasSize(48);
     }
 
     @Test
-    public void watchesWatchedFile() throws IOException, InterruptedException {
+    public void watchesWatchedFile() throws IOException, InterruptedException, NoSuchAlgorithmException {
         Path watchedFile = getWatchedFile();
-        Files.copy(Paths.get("src/test/resources/darwin-48.pem"), watchedFile);
+        Files.copy(Paths.get("src/test/resources/server-certificates-48.pem"), watchedFile);
 
-        FileWatchingX509TrustManager trustManager = new FileWatchingX509TrustManager("PKIX", watchedFile);
+        FileWatchingX509ExtendedTrustManager trustManager = new FileWatchingX509ExtendedTrustManager(watchedFile, TrustManagerFactory.getInstance("PKIX"));
 
         assertThat(trustManager.getAcceptedIssuers()).hasSize(48);
 
         Thread.sleep(5_000);
-        Files.copy(Paths.get("src/test/resources/unix-173.pem"), watchedFile, StandardCopyOption.REPLACE_EXISTING);
+        Files.copy(Paths.get("src/test/resources/server-certificates-173.pem"), watchedFile, StandardCopyOption.REPLACE_EXISTING);
         Thread.sleep(11_000);
 
         assertThat(trustManager.getAcceptedIssuers()).hasSize(173);
