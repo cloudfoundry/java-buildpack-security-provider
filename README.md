@@ -2,8 +2,9 @@
 
 | Job | Status
 | --- | ------
-| `unit-test` | [![unit-test-master](https://java-experience.ci.springapps.io/api/v1/teams/java-experience/pipelines/java-buildpack-security-provider/jobs/unit-test-master/badge)](https://java-experience.ci.springapps.io/teams/java-experience/pipelines/java-buildpack-security-provider/jobs/unit-test-master)
-| `deploy` | [![deploy-master](https://java-experience.ci.springapps.io/api/v1/teams/java-experience/pipelines/java-buildpack-security-provider/jobs/deploy-master/badge)](https://java-experience.ci.springapps.io/teams/java-experience/pipelines/java-buildpack-security-provider/jobs/deploy-master)
+| `unit-test-7` | [![unit-test-master](https://java-experience.ci.springapps.io/api/v1/teams/java-experience/pipelines/java-buildpack-security-provider/jobs/unit-test-7/badge)](https://java-experience.ci.springapps.io/teams/java-experience/pipelines/java-buildpack-security-provider/jobs/unit-test-7)
+| `unit-test-8` | [![unit-test-master](https://java-experience.ci.springapps.io/api/v1/teams/java-experience/pipelines/java-buildpack-security-provider/jobs/unit-test-8/badge)](https://java-experience.ci.springapps.io/teams/java-experience/pipelines/java-buildpack-security-provider/jobs/unit-test-8)
+| `deploy` | [![deploy-master](https://java-experience.ci.springapps.io/api/v1/teams/java-experience/pipelines/java-buildpack-security-provider/jobs/deploy/badge)](https://java-experience.ci.springapps.io/teams/java-experience/pipelines/java-buildpack-security-provider/jobs/deploy)
 
 The `java-buildpack-security-provider` is a utility that watches for changes to container identity and trust stores and dynamically updates the KeyManager and TrustManager of an application.
 
