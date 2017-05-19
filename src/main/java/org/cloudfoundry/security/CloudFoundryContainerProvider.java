@@ -19,11 +19,14 @@ package org.cloudfoundry.security;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
 import java.security.Provider;
+import java.util.logging.Logger;
 
 /**
  * An security {@link Provider} that exposes a {@link KeyManagerFactory} and {@link TrustManagerFactory} based on artifacts within a Cloud Foundry application container.
  */
 public final class CloudFoundryContainerProvider extends Provider {
+
+    private final Logger logger = Logger.getLogger(this.getClass().getName());
 
     private static final long serialVersionUID = -254669391239963192L;
 
@@ -46,6 +49,8 @@ public final class CloudFoundryContainerProvider extends Provider {
         put("Alg.Alias.TrustManagerFactory.SunPKIX", "PKIX");
         put("Alg.Alias.TrustManagerFactory.X509", "PKIX");
         put("Alg.Alias.TrustManagerFactory.X.509", "PKIX");
+
+        this.logger.fine("Provider loaded");
     }
 
 }

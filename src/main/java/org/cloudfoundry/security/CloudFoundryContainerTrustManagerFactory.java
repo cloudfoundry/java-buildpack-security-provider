@@ -51,6 +51,9 @@ abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFact
     private CloudFoundryContainerTrustManagerFactory(String algorithm, Path certificates) throws NoSuchAlgorithmException, NoSuchProviderException {
         this.certificates = certificates;
         this.trustManagerFactory = TrustManagerFactory.getInstance(algorithm, "SunJSSE");
+
+        this.logger.fine(String.format("Algorithm: %s", algorithm));
+        this.logger.fine(String.format("Certificates: %s", certificates));
     }
 
     @Override

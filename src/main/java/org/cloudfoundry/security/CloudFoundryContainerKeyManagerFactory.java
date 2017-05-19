@@ -51,6 +51,10 @@ abstract class CloudFoundryContainerKeyManagerFactory extends KeyManagerFactoryS
         this.certificates = certificates;
         this.keyManagerFactory = KeyManagerFactory.getInstance(algorithm, "SunJSSE");
         this.privateKey = privateKey;
+
+        this.logger.fine(String.format("Algorithm: %s", algorithm));
+        this.logger.fine(String.format("Certificates: %s", certificates));
+        this.logger.fine(String.format("Private Key: %s", privateKey));
     }
 
     @Override
@@ -77,7 +81,7 @@ abstract class CloudFoundryContainerKeyManagerFactory extends KeyManagerFactoryS
 
     private static Path getProperty(String name) {
         String value = System.getenv(name);
-        return name != null ? Paths.get(name) : null;
+        return value != null ? Paths.get(value) : null;
     }
 
     public static final class SunX509 extends CloudFoundryContainerKeyManagerFactory {
