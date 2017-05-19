@@ -59,7 +59,7 @@ public final class FileWatchingX509ExtendedKeyManagerTest {
         Thread.sleep(5_000);
         Files.copy(Paths.get("src/test/resources/client-certificates-2.pem"), watchedCertificates, StandardCopyOption.REPLACE_EXISTING);
         Files.copy(Paths.get("src/test/resources/client-private-key-2.pem"), watchedPrivateKey, StandardCopyOption.REPLACE_EXISTING);
-        Thread.sleep(20_000);
+        Thread.sleep(30_000);
 
         assertThat(keyManager.getClientAliases("RSA", null)[0]).isNotEqualTo(alias);
     }

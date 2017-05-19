@@ -51,7 +51,7 @@ public final class FileWatchingX509ExtendedTrustManagerTest {
 
         Thread.sleep(5_000);
         Files.copy(Paths.get("src/test/resources/server-certificates-173.pem"), watchedFile, StandardCopyOption.REPLACE_EXISTING);
-        Thread.sleep(20_000);
+        Thread.sleep(30_000);
 
         assertThat(trustManager.getAcceptedIssuers()).hasSize(173);
     }
