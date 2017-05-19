@@ -17,6 +17,7 @@
 package org.cloudfoundry.security;
 
 import java.io.IOException;
+import java.security.Key;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
@@ -24,12 +25,17 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.util.concurrent.atomic.AtomicInteger;
 
-final class KeyStoreBuilder {
+final class KeyStoreEntryCollector {
 
-    private static final AtomicInteger counter = new AtomicInteger();
+    private static final AtomicInteger COUNTER = new AtomicInteger();
 
     static KeyStore accumulate(KeyStore keyStore, Certificate certificate) throws KeyStoreException {
         keyStore.setCertificateEntry(getAlias(), certificate);
+        return keyStore;
+    }
+
+    static KeyStore accumulate(KeyStore keyStore, Key key, char[] password, Certificate[] chain) throws KeyStoreException {
+        keyStore.setKeyEntry(getAlias(), key, password, chain);
         return keyStore;
     }
 
@@ -40,7 +46,7 @@ final class KeyStoreBuilder {
     }
 
     private static String getAlias() {
-        return String.valueOf(counter.getAndIncrement());
+        return String.valueOf(COUNTER.getAndIncrement());
     }
 
 }

@@ -17,76 +17,89 @@
 package org.cloudfoundry.security;
 
 import javax.net.ssl.KeyManager;
+import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.KeyManagerFactorySpi;
 import javax.net.ssl.ManagerFactoryParameters;
-import java.lang.reflect.Method;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.security.UnrecoverableKeyException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.logging.Logger;
 
 abstract class CloudFoundryContainerKeyManagerFactory extends KeyManagerFactorySpi {
 
+    static final String KEY_STORE_PROPERTY = "javax.net.ssl.keyStore";
+
+    private static final String CERTIFICATES_PROPERTY = "CF_INSTANCE_CERT";
+
+    private static final String PRIVATE_KEY_PROPERTY = "CF_INSTANCE_KEY";
+
     private final Logger logger = Logger.getLogger(this.getClass().getName());
 
-    private final Method engineGetKeyManagers;
+    private final Path certificates;
 
-    private final Method engineInitKeyStoreCharArray;
+    private final KeyManagerFactory keyManagerFactory;
 
-    private final Method engineInitManagerFactoryParameters;
+    private final Path privateKey;
 
-    private KeyManagerFactorySpi delegate;
-
-    private CloudFoundryContainerKeyManagerFactory(String algorithm) throws NoSuchAlgorithmException {
-        this.delegate = ServiceUtils.getService("KeyManagerFactory", algorithm);
-
-        this.engineGetKeyManagers = ClassUtils.findMethod(this.delegate.getClass(), "engineGetKeyManagers");
-        ReflectionUtils.makeAccessible(this.engineGetKeyManagers);
-
-        this.engineInitKeyStoreCharArray = ClassUtils.findMethod(this.delegate.getClass(), "engineInit", KeyStore.class, char[].class);
-        ReflectionUtils.makeAccessible(this.engineInitKeyStoreCharArray);
-
-        this.engineInitManagerFactoryParameters = ClassUtils.findMethod(this.delegate.getClass(), "engineInit", ManagerFactoryParameters.class);
-        ReflectionUtils.makeAccessible(this.engineInitManagerFactoryParameters);
+    private CloudFoundryContainerKeyManagerFactory(String algorithm, Path certificates, Path privateKey) throws NoSuchAlgorithmException, NoSuchProviderException {
+        this.certificates = certificates;
+        this.keyManagerFactory = KeyManagerFactory.getInstance(algorithm, "SunJSSE");
+        this.privateKey = privateKey;
     }
 
     @Override
     protected final KeyManager[] engineGetKeyManagers() {
-        List<KeyManager> keyManagers = new ArrayList<>();
-        Collections.addAll(keyManagers, (KeyManager[]) ReflectionUtils.invokeMethod(this.engineGetKeyManagers, this.delegate));
+        if (System.getProperty(KEY_STORE_PROPERTY) == null && this.certificates != null && this.privateKey != null) {
+            if (Files.exists(this.certificates) && Files.exists(this.privateKey)) {
+                this.logger.info(String.format("Added Key Manager for %s and %s", this.privateKey, this.certificates));
+                return new KeyManager[]{new FileWatchingX509ExtendedKeyManager(this.certificates, this.privateKey, this.keyManagerFactory)};
+            }
+        }
 
-        // TODO: Add KeyManagers for Diego keys
-
-        return keyManagers.toArray(new KeyManager[keyManagers.size()]);
+        return this.keyManagerFactory.getKeyManagers();
     }
 
     @Override
     protected final void engineInit(ManagerFactoryParameters managerFactoryParameters) throws InvalidAlgorithmParameterException {
-        ReflectionUtils.invokeMethod(this.engineInitManagerFactoryParameters, this.delegate, managerFactoryParameters);
+        this.keyManagerFactory.init(managerFactoryParameters);
     }
 
     @Override
     protected final void engineInit(KeyStore keyStore, char[] chars) throws KeyStoreException, NoSuchAlgorithmException, UnrecoverableKeyException {
-        ReflectionUtils.invokeMethod(this.engineInitKeyStoreCharArray, this.delegate, keyStore, chars);
+        this.keyManagerFactory.init(keyStore, chars);
+    }
+
+    private static Path getProperty(String name) {
+        String value = System.getenv(name);
+        return name != null ? Paths.get(name) : null;
     }
 
     public static final class SunX509 extends CloudFoundryContainerKeyManagerFactory {
 
-        public SunX509() throws NoSuchAlgorithmException {
-            super("SunX509");
+        public SunX509() throws NoSuchAlgorithmException, NoSuchProviderException {
+            this(getProperty(CERTIFICATES_PROPERTY), getProperty(PRIVATE_KEY_PROPERTY));
+        }
+
+        SunX509(Path certificates, Path privateKey) throws NoSuchAlgorithmException, NoSuchProviderException {
+            super("SunX509", certificates, privateKey);
         }
 
     }
 
     public static final class X509 extends CloudFoundryContainerKeyManagerFactory {
 
-        public X509() throws NoSuchAlgorithmException {
-            super("NewSunX509");
+        public X509() throws NoSuchAlgorithmException, NoSuchProviderException {
+            this(getProperty(CERTIFICATES_PROPERTY), getProperty(PRIVATE_KEY_PROPERTY));
+        }
+
+        X509(Path certificates, Path privateKey) throws NoSuchAlgorithmException, NoSuchProviderException {
+            super("NewSunX509", certificates, privateKey);
         }
 
     }

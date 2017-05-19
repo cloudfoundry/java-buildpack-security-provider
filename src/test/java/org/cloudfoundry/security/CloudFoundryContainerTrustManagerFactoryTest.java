@@ -18,30 +18,62 @@ package org.cloudfoundry.security;
 
 import org.junit.Test;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
+import javax.net.ssl.TrustManager;
+import java.io.IOException;
+import java.nio.file.Paths;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
+import java.security.cert.CertificateException;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.cloudfoundry.security.CloudFoundryContainerTrustManagerFactory.TRUST_STORE_PROPERTY;
 
 public final class CloudFoundryContainerTrustManagerFactoryTest {
 
     @Test
-    public void addsAdditionalTrustManagers() throws NoSuchAlgorithmException, KeyStoreException {
-        int expected = 1;
+    public void customTrustManager() throws NoSuchProviderException, NoSuchAlgorithmException, CertificateException, KeyStoreException, IOException {
+        CloudFoundryContainerTrustManagerFactory.PKIXFactory factory = new CloudFoundryContainerTrustManagerFactory.PKIXFactory(
+            Paths.get("src/test/resources/server-certificates-48.pem"));
+        factory.engineInit(getKeyStore());
 
-        for (Path certificateFile : CloudFoundryContainerTrustManagerFactory.OPENSSL_CERTIFICATE_FILES) {
-            if (Files.exists(certificateFile)) {
-                expected++;
-            }
+        TrustManager[] trustManagers = factory.engineGetTrustManagers();
+        assertThat(trustManagers).hasSize(1);
+        assertThat(trustManagers[0]).isInstanceOf(FileWatchingX509ExtendedTrustManager.class);
+    }
+
+    @Test
+    public void defaultTrustManagerForTrustStoreProperty() throws NoSuchAlgorithmException, KeyStoreException, IOException, CertificateException, NoSuchProviderException {
+        try {
+            System.setProperty(TRUST_STORE_PROPERTY, "");
+
+            CloudFoundryContainerTrustManagerFactory.PKIXFactory factory = new CloudFoundryContainerTrustManagerFactory.PKIXFactory(
+                Paths.get("src/test/resources/server-certificates-48.pem"));
+            factory.engineInit(getKeyStore());
+
+            TrustManager[] trustManagers = factory.engineGetTrustManagers();
+            assertThat(trustManagers).hasSize(1);
+            assertThat(trustManagers[0]).isNotInstanceOf(FileWatchingX509ExtendedTrustManager.class);
+        } finally {
+            System.clearProperty(TRUST_STORE_PROPERTY);
         }
+    }
 
-        CloudFoundryContainerTrustManagerFactory.PKIXFactory factory = new CloudFoundryContainerTrustManagerFactory.PKIXFactory();
-        factory.engineInit(KeyStore.getInstance(KeyStore.getDefaultType()));
+    @Test
+    public void defaultTrustManagerForNullCertificatesLocation() throws CertificateException, NoSuchAlgorithmException, KeyStoreException, IOException, NoSuchProviderException {
+        CloudFoundryContainerTrustManagerFactory.PKIXFactory factory = new CloudFoundryContainerTrustManagerFactory.PKIXFactory(null);
+        factory.engineInit(getKeyStore());
 
-        assertThat(factory.engineGetTrustManagers()).hasSize(expected);
+        TrustManager[] trustManagers = factory.engineGetTrustManagers();
+        assertThat(trustManagers).hasSize(1);
+        assertThat(trustManagers[0]).isNotInstanceOf(FileWatchingX509ExtendedTrustManager.class);
+    }
+
+    private KeyStore getKeyStore() throws KeyStoreException, CertificateException, NoSuchAlgorithmException, IOException {
+        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+        keyStore.load(null);
+        return keyStore;
     }
 
 }
