@@ -25,6 +25,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.security.NoSuchAlgorithmException;
+import java.security.cert.Certificate;
+import java.util.Collections;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -35,7 +37,7 @@ public final class FileWatchingX509ExtendedTrustManagerTest {
         Path watchedFile = getWatchedFile();
         Files.copy(Paths.get("src/test/resources/server-certificates-48.pem"), watchedFile);
 
-        FileWatchingX509ExtendedTrustManager trustManager = new FileWatchingX509ExtendedTrustManager(watchedFile, TrustManagerFactory.getInstance("PKIX"));
+        FileWatchingX509ExtendedTrustManager trustManager = new FileWatchingX509ExtendedTrustManager(watchedFile, TrustManagerFactory.getInstance("PKIX"), Collections.<Certificate>emptyList());
 
         assertThat(trustManager.getAcceptedIssuers()).hasSize(48);
     }
@@ -45,7 +47,7 @@ public final class FileWatchingX509ExtendedTrustManagerTest {
         Path watchedFile = getWatchedFile();
         Files.copy(Paths.get("src/test/resources/server-certificates-48.pem"), watchedFile);
 
-        FileWatchingX509ExtendedTrustManager trustManager = new FileWatchingX509ExtendedTrustManager(watchedFile, TrustManagerFactory.getInstance("PKIX"));
+        FileWatchingX509ExtendedTrustManager trustManager = new FileWatchingX509ExtendedTrustManager(watchedFile, TrustManagerFactory.getInstance("PKIX"), Collections.<Certificate>emptyList());
 
         assertThat(trustManager.getAcceptedIssuers()).hasSize(48);
 

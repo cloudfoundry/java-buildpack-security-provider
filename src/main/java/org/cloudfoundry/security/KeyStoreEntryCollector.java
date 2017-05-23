@@ -46,7 +46,7 @@ final class KeyStoreEntryCollector {
     }
 
     private static String getAlias() {
-        return String.valueOf(COUNTER.getAndIncrement());
+        return String.format("cloud-foundry-container-%03d", COUNTER.getAndIncrement());
     }
 
 }

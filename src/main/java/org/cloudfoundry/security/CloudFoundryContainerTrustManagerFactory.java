@@ -28,8 +28,13 @@ import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
+import java.security.cert.Certificate;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Enumeration;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Logger;
 
 abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFactorySpi {
@@ -46,6 +51,8 @@ abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFact
 
     private final Path certificates;
 
+    private final AtomicReference<List<Certificate>> defaultCertificates = new AtomicReference<>(Collections.<Certificate>emptyList());
+
     private final TrustManagerFactory trustManagerFactory;
 
     private CloudFoundryContainerTrustManagerFactory(String algorithm, Path certificates) throws NoSuchAlgorithmException, NoSuchProviderException {
@@ -60,7 +67,7 @@ abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFact
     protected final TrustManager[] engineGetTrustManagers() {
         if (System.getProperty(TRUST_STORE_PROPERTY) == null && this.certificates != null) {
             this.logger.info(String.format("Added TrustManager for %s", this.certificates));
-            return new TrustManager[]{new FileWatchingX509ExtendedTrustManager(this.certificates, this.trustManagerFactory)};
+            return new TrustManager[]{new FileWatchingX509ExtendedTrustManager(this.certificates, this.trustManagerFactory, this.defaultCertificates.get())};
         }
 
         return this.trustManagerFactory.getTrustManagers();
@@ -74,6 +81,7 @@ abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFact
     @Override
     protected final void engineInit(KeyStore keyStore) throws KeyStoreException {
         this.trustManagerFactory.init(keyStore);
+        this.defaultCertificates.set(getCertificates(keyStore));
     }
 
     private static Path getCertificatesLocation() {
@@ -84,6 +92,20 @@ abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFact
         }
 
         return null;
+    }
+
+    private List<Certificate> getCertificates(KeyStore keyStore) throws KeyStoreException {
+        List<Certificate> certificates = new ArrayList<>();
+
+        Enumeration<String> aliases = keyStore.aliases();
+        while (aliases.hasMoreElements()) {
+            String alias = aliases.nextElement();
+            if (keyStore.isCertificateEntry(alias)) {
+                certificates.add(keyStore.getCertificate(alias));
+            }
+        }
+
+        return certificates;
     }
 
     public static final class PKIXFactory extends CloudFoundryContainerTrustManagerFactory {

@@ -27,8 +27,10 @@ import java.nio.file.Path;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
+import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Logger;
 
@@ -36,13 +38,16 @@ final class FileWatchingX509ExtendedTrustManager extends X509ExtendedTrustManage
 
     private final Logger logger = Logger.getLogger(this.getClass().getName());
 
+    private final List<Certificate> defaultCertificates;
+
     private final Path source;
 
     private final AtomicReference<X509ExtendedTrustManager> trustManager = new AtomicReference<>();
 
     private final TrustManagerFactory trustManagerFactory;
 
-    FileWatchingX509ExtendedTrustManager(Path source, TrustManagerFactory trustManagerFactory) {
+    FileWatchingX509ExtendedTrustManager(Path source, TrustManagerFactory trustManagerFactory, List<Certificate> defaultCertificates) {
+        this.defaultCertificates = defaultCertificates;
         this.source = source;
         this.trustManagerFactory = trustManagerFactory;
 
@@ -94,6 +99,10 @@ final class FileWatchingX509ExtendedTrustManager extends X509ExtendedTrustManage
             KeyStore keyStore = KeyStoreEntryCollector.identity();
 
             for (X509Certificate certificate : X509CertificateFactory.generate(this.source)) {
+                KeyStoreEntryCollector.accumulate(keyStore, certificate);
+            }
+
+            for (Certificate certificate : this.defaultCertificates) {
                 KeyStoreEntryCollector.accumulate(keyStore, certificate);
             }
 
