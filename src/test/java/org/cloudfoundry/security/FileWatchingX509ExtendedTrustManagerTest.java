@@ -25,8 +25,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.security.NoSuchAlgorithmException;
-import java.security.cert.Certificate;
-import java.util.Collections;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -34,28 +32,35 @@ public final class FileWatchingX509ExtendedTrustManagerTest {
 
     @Test
     public void initializedWithWatchedFile() throws IOException, NoSuchAlgorithmException {
-        Path watchedFile = getWatchedFile();
-        Files.copy(Paths.get("src/test/resources/server-certificates-48.pem"), watchedFile);
+        Path watchedJreCertificates = getWatchedFile();
+        Files.copy(Paths.get("src/test/resources/cacerts-104.jks"), watchedJreCertificates);
 
-        FileWatchingX509ExtendedTrustManager trustManager = new FileWatchingX509ExtendedTrustManager(watchedFile, TrustManagerFactory.getInstance("PKIX"), Collections.<Certificate>emptyList());
+        Path watchedOpenSslCertificates = getWatchedFile();
+        Files.copy(Paths.get("src/test/resources/server-certificates-48.pem"), watchedOpenSslCertificates);
 
-        assertThat(trustManager.getAcceptedIssuers()).hasSize(48);
+        FileWatchingX509ExtendedTrustManager trustManager = new FileWatchingX509ExtendedTrustManager(watchedJreCertificates, watchedOpenSslCertificates, TrustManagerFactory.getInstance("PKIX"));
+
+        assertThat(trustManager.getAcceptedIssuers()).hasSize(116);
     }
 
     @Test
     public void watchesWatchedFile() throws IOException, InterruptedException, NoSuchAlgorithmException {
-        Path watchedFile = getWatchedFile();
-        Files.copy(Paths.get("src/test/resources/server-certificates-48.pem"), watchedFile);
+        Path watchedJreCertificates = getWatchedFile();
+        Files.copy(Paths.get("src/test/resources/cacerts-104.jks"), watchedJreCertificates);
 
-        FileWatchingX509ExtendedTrustManager trustManager = new FileWatchingX509ExtendedTrustManager(watchedFile, TrustManagerFactory.getInstance("PKIX"), Collections.<Certificate>emptyList());
+        Path watchedOpenSslCertificates = getWatchedFile();
+        Files.copy(Paths.get("src/test/resources/server-certificates-48.pem"), watchedOpenSslCertificates);
 
-        assertThat(trustManager.getAcceptedIssuers()).hasSize(48);
+        FileWatchingX509ExtendedTrustManager trustManager = new FileWatchingX509ExtendedTrustManager(watchedJreCertificates, watchedOpenSslCertificates, TrustManagerFactory.getInstance("PKIX"));
+
+        assertThat(trustManager.getAcceptedIssuers()).hasSize(116);
 
         Thread.sleep(5_000);
-        Files.copy(Paths.get("src/test/resources/server-certificates-173.pem"), watchedFile, StandardCopyOption.REPLACE_EXISTING);
+        Files.copy(Paths.get("src/test/resources/cacerts-104.jks"), watchedJreCertificates, StandardCopyOption.REPLACE_EXISTING);
+        Files.copy(Paths.get("src/test/resources/server-certificates-173.pem"), watchedOpenSslCertificates, StandardCopyOption.REPLACE_EXISTING);
         Thread.sleep(30_000);
 
-        assertThat(trustManager.getAcceptedIssuers()).hasSize(173);
+        assertThat(trustManager.getAcceptedIssuers()).hasSize(185);
     }
 
     private Path getWatchedFile() throws IOException {
