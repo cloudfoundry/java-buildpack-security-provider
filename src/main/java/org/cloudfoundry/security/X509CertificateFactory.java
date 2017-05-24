@@ -21,20 +21,46 @@ import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.openssl.PEMParser;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.List;
 
 final class X509CertificateFactory {
 
     private static final JcaX509CertificateConverter CONVERTER = new JcaX509CertificateConverter();
 
-    static List<X509Certificate> generate(Path path) throws IOException, CertificateException {
+    static List<X509Certificate> generateKeyStore(Path path) throws KeyStoreException, IOException, CertificateException, NoSuchAlgorithmException {
+        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+
+        try (InputStream in = Files.newInputStream(path, StandardOpenOption.READ)) {
+            keyStore.load(in, null);
+        }
+
+        List<X509Certificate> certificates = new ArrayList<>();
+
+        Enumeration<String> aliases = keyStore.aliases();
+        while (aliases.hasMoreElements()) {
+            String alias = aliases.nextElement();
+            if (keyStore.isCertificateEntry(alias)) {
+                certificates.add((X509Certificate) keyStore.getCertificate(alias));
+            }
+        }
+
+        return certificates;
+    }
+
+    static List<X509Certificate> generateOpenSsl(Path path) throws IOException, CertificateException {
         List<X509Certificate> certificates = new ArrayList<>();
 
         try (Reader in = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {

@@ -30,7 +30,6 @@ import java.security.NoSuchAlgorithmException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Logger;
 
@@ -38,23 +37,24 @@ final class FileWatchingX509ExtendedTrustManager extends X509ExtendedTrustManage
 
     private final Logger logger = Logger.getLogger(this.getClass().getName());
 
-    private final List<Certificate> defaultCertificates;
+    private final Path jreCertificates;
 
-    private final Path source;
+    private final Path openSslCertificates;
 
     private final AtomicReference<X509ExtendedTrustManager> trustManager = new AtomicReference<>();
 
     private final TrustManagerFactory trustManagerFactory;
 
-    FileWatchingX509ExtendedTrustManager(Path source, TrustManagerFactory trustManagerFactory, List<Certificate> defaultCertificates) {
-        this.defaultCertificates = defaultCertificates;
-        this.source = source;
+    FileWatchingX509ExtendedTrustManager(Path jreCertificates, Path openSslCertificates, TrustManagerFactory trustManagerFactory) {
+        this.jreCertificates = jreCertificates;
+        this.openSslCertificates = openSslCertificates;
         this.trustManagerFactory = trustManagerFactory;
 
-        new FileWatcher(this.source, new FileWatcherCallback()).watch();
+        new FileWatcher(this.jreCertificates, new FileWatcherCallback()).watch();
+        new FileWatcher(this.openSslCertificates, new FileWatcherCallback()).watch();
 
         if (this.trustManager.compareAndSet(null, getTrustManager(getKeyStore()))) {
-            this.logger.info(String.format("Initialized TrustManager for %s", this.source));
+            this.logger.info(String.format("Initialized TrustManager for %s and %s", this.openSslCertificates, this.jreCertificates));
         }
     }
 
@@ -98,11 +98,11 @@ final class FileWatchingX509ExtendedTrustManager extends X509ExtendedTrustManage
         try {
             KeyStore keyStore = KeyStoreEntryCollector.identity();
 
-            for (X509Certificate certificate : X509CertificateFactory.generate(this.source)) {
+            for (X509Certificate certificate : X509CertificateFactory.generateOpenSsl(this.openSslCertificates)) {
                 KeyStoreEntryCollector.accumulate(keyStore, certificate);
             }
 
-            for (Certificate certificate : this.defaultCertificates) {
+            for (Certificate certificate : X509CertificateFactory.generateKeyStore(this.jreCertificates)) {
                 KeyStoreEntryCollector.accumulate(keyStore, certificate);
             }
 
@@ -133,9 +133,11 @@ final class FileWatchingX509ExtendedTrustManager extends X509ExtendedTrustManage
         @Override
         public void run() {
             if (FileWatchingX509ExtendedTrustManager.this.trustManager.getAndSet(getTrustManager(getKeyStore())) == null) {
-                FileWatchingX509ExtendedTrustManager.this.logger.info(String.format("Initialized TrustManager for %s", FileWatchingX509ExtendedTrustManager.this.source));
+                FileWatchingX509ExtendedTrustManager.this.logger.info(String.format("Initialized TrustManager for %s and %s", FileWatchingX509ExtendedTrustManager.this.openSslCertificates,
+                    FileWatchingX509ExtendedTrustManager.this.jreCertificates));
             } else {
-                FileWatchingX509ExtendedTrustManager.this.logger.info(String.format("Updated TrustManager for %s", FileWatchingX509ExtendedTrustManager.this.source));
+                FileWatchingX509ExtendedTrustManager.this.logger.info(String.format("Updated TrustManager for %s and %s", FileWatchingX509ExtendedTrustManager.this.openSslCertificates,
+                    FileWatchingX509ExtendedTrustManager.this.jreCertificates));
             }
         }
 
