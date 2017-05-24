@@ -27,6 +27,7 @@ import java.nio.file.StandardCopyOption;
 import java.security.NoSuchAlgorithmException;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 
 public final class FileWatchingX509ExtendedTrustManagerTest {
 
@@ -58,9 +59,19 @@ public final class FileWatchingX509ExtendedTrustManagerTest {
         Thread.sleep(5_000);
         Files.copy(Paths.get("src/test/resources/cacerts-104.jks"), watchedJreCertificates, StandardCopyOption.REPLACE_EXISTING);
         Files.copy(Paths.get("src/test/resources/server-certificates-173.pem"), watchedOpenSslCertificates, StandardCopyOption.REPLACE_EXISTING);
-        Thread.sleep(30_000);
 
-        assertThat(trustManager.getAcceptedIssuers()).hasSize(185);
+        long timeout = System.currentTimeMillis() + 300_000;
+        for (; ; ) {
+            if (System.currentTimeMillis() > timeout) {
+                fail("Failed to update within timeout");
+            }
+
+            if (trustManager.getAcceptedIssuers().length == 185) {
+                return;
+            }
+
+            Thread.sleep(1_000);
+        }
     }
 
     private Path getWatchedFile() throws IOException {

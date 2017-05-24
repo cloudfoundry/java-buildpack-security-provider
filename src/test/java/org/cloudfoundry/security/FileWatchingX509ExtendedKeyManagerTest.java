@@ -28,6 +28,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 
 public final class FileWatchingX509ExtendedKeyManagerTest {
 
@@ -59,9 +60,19 @@ public final class FileWatchingX509ExtendedKeyManagerTest {
         Thread.sleep(5_000);
         Files.copy(Paths.get("src/test/resources/client-certificates-2.pem"), watchedCertificates, StandardCopyOption.REPLACE_EXISTING);
         Files.copy(Paths.get("src/test/resources/client-private-key-2.pem"), watchedPrivateKey, StandardCopyOption.REPLACE_EXISTING);
-        Thread.sleep(30_000);
 
-        assertThat(keyManager.getClientAliases("RSA", null)[0]).isNotEqualTo(alias);
+        long timeout = System.currentTimeMillis() + 300_000;
+        for (; ; ) {
+            if (System.currentTimeMillis() > timeout) {
+                fail("Failed to update within timeout");
+            }
+
+            if (!keyManager.getClientAliases("RSA", null)[0].equals(alias)) {
+                return;
+            }
+
+            Thread.sleep(1_000);
+        }
     }
 
     private Path getWatchedCertificatesFile() throws IOException {
