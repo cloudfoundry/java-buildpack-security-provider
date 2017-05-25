@@ -20,6 +20,8 @@ import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.KeyManagerFactorySpi;
 import javax.net.ssl.ManagerFactoryParameters;
+import javax.net.ssl.X509ExtendedKeyManager;
+import java.lang.reflect.UndeclaredThrowableException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -29,11 +31,11 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.UnrecoverableKeyException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.logging.Logger;
 
 abstract class CloudFoundryContainerKeyManagerFactory extends KeyManagerFactorySpi {
-
-    static final String KEY_STORE_PROPERTY = "javax.net.ssl.keyStore";
 
     private static final String CERTIFICATES_PROPERTY = "CF_INSTANCE_CERT";
 
@@ -41,16 +43,19 @@ abstract class CloudFoundryContainerKeyManagerFactory extends KeyManagerFactoryS
 
     private final Logger logger = Logger.getLogger(this.getClass().getName());
 
-    private final Path certificates;
+    private final String algorithm;
 
-    private final KeyManagerFactory keyManagerFactory;
+    private final Path certificates;
 
     private final Path privateKey;
 
-    private CloudFoundryContainerKeyManagerFactory(String algorithm, Path certificates, Path privateKey) throws NoSuchAlgorithmException, NoSuchProviderException {
+    private final KeyManagerFactory systemKeyManagerFactory;
+
+    private CloudFoundryContainerKeyManagerFactory(String algorithm, Path certificates, Path privateKey) {
+        this.algorithm = algorithm;
         this.certificates = certificates;
-        this.keyManagerFactory = KeyManagerFactory.getInstance(algorithm, "SunJSSE");
         this.privateKey = privateKey;
+        this.systemKeyManagerFactory = getKeyManagerFactory();
 
         this.logger.fine(String.format("Algorithm: %s", algorithm));
         this.logger.fine(String.format("Certificates: %s", certificates));
@@ -59,29 +64,44 @@ abstract class CloudFoundryContainerKeyManagerFactory extends KeyManagerFactoryS
 
     @Override
     protected final KeyManager[] engineGetKeyManagers() {
-        if (System.getProperty(KEY_STORE_PROPERTY) == null && this.certificates != null && this.privateKey != null) {
-            if (Files.exists(this.certificates) && Files.exists(this.privateKey)) {
-                this.logger.info(String.format("Added Key Manager for %s and %s", this.privateKey, this.certificates));
-                return new KeyManager[]{new FileWatchingX509ExtendedKeyManager(this.certificates, this.privateKey, this.keyManagerFactory)};
+        List<X509ExtendedKeyManager> delegates = new ArrayList<>();
+
+        for (KeyManager candidate : this.systemKeyManagerFactory.getKeyManagers()) {
+            if (candidate instanceof X509ExtendedKeyManager) {
+                this.logger.info("Adding System Key Manager");
+                delegates.add((X509ExtendedKeyManager) candidate);
             }
         }
 
-        return this.keyManagerFactory.getKeyManagers();
+        if (this.certificates != null && Files.exists(this.certificates) && this.privateKey != null && Files.exists(this.privateKey)) {
+            this.logger.info(String.format("Adding Key Manager for %s and %s", this.privateKey, this.certificates));
+            delegates.add(new FileWatchingX509ExtendedKeyManager(this.certificates, this.privateKey, getKeyManagerFactory()));
+        }
+
+        return new KeyManager[]{new DelegatingX509ExtendedKeyManager(delegates)};
     }
 
     @Override
     protected final void engineInit(ManagerFactoryParameters managerFactoryParameters) throws InvalidAlgorithmParameterException {
-        this.keyManagerFactory.init(managerFactoryParameters);
+        this.systemKeyManagerFactory.init(managerFactoryParameters);
     }
 
     @Override
     protected final void engineInit(KeyStore keyStore, char[] chars) throws KeyStoreException, NoSuchAlgorithmException, UnrecoverableKeyException {
-        this.keyManagerFactory.init(keyStore, chars);
+        this.systemKeyManagerFactory.init(keyStore, chars);
     }
 
     private static Path getProperty(String name) {
         String value = System.getenv(name);
         return value != null ? Paths.get(value) : null;
+    }
+
+    private KeyManagerFactory getKeyManagerFactory() {
+        try {
+            return KeyManagerFactory.getInstance(this.algorithm, "SunJSSE");
+        } catch (NoSuchAlgorithmException | NoSuchProviderException e) {
+            throw new UndeclaredThrowableException(e);
+        }
     }
 
     public static final class SunX509 extends CloudFoundryContainerKeyManagerFactory {

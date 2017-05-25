@@ -35,7 +35,7 @@ public final class KeyStoreEntryCollectorTest {
 
     @Test
     public void certificate() throws CertificateException, NoSuchAlgorithmException, KeyStoreException, IOException {
-        X509Certificate certificate = X509CertificateFactory.generateOpenSsl(Paths.get("src/test/resources/client-certificates-1.pem")).get(0);
+        X509Certificate certificate = X509CertificateFactory.generate(Paths.get("src/test/resources/client-certificates-1.pem")).get(0);
 
         KeyStore keyStore = KeyStoreEntryCollector.identity();
         KeyStoreEntryCollector.accumulate(keyStore, certificate);
@@ -46,7 +46,7 @@ public final class KeyStoreEntryCollectorTest {
     @Test
     public void privateKey() throws CertificateException, NoSuchAlgorithmException, KeyStoreException, IOException {
         PrivateKey privateKey = PrivateKeyFactory.generate(Paths.get("src/test/resources/client-private-key-1.pem"));
-        List<X509Certificate> certificates = X509CertificateFactory.generateOpenSsl(Paths.get("src/test/resources/client-certificates-1.pem"));
+        List<X509Certificate> certificates = X509CertificateFactory.generate(Paths.get("src/test/resources/client-certificates-1.pem"));
 
         KeyStore keyStore = KeyStoreEntryCollector.identity();
         KeyStoreEntryCollector.accumulate(keyStore, privateKey, new char[0], certificates.toArray(new Certificate[certificates.size()]));

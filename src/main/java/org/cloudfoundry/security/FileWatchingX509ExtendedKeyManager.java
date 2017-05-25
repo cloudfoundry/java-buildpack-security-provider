@@ -122,7 +122,7 @@ final class FileWatchingX509ExtendedKeyManager extends X509ExtendedKeyManager {
         try {
             KeyStore keyStore = KeyStoreEntryCollector.identity();
             PrivateKey privateKey = PrivateKeyFactory.generate(this.privateKey);
-            List<X509Certificate> certificates = X509CertificateFactory.generateOpenSsl(this.certificates);
+            List<X509Certificate> certificates = X509CertificateFactory.generate(this.certificates);
 
             KeyStoreEntryCollector.accumulate(keyStore, privateKey, new char[0], certificates.toArray(new Certificate[certificates.size()]));
 

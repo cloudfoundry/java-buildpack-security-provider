@@ -29,7 +29,6 @@ import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.cloudfoundry.security.CloudFoundryContainerKeyManagerFactory.KEY_STORE_PROPERTY;
 
 public final class CloudFoundryContainerKeyManagerFactoryTest {
 
@@ -40,27 +39,9 @@ public final class CloudFoundryContainerKeyManagerFactoryTest {
             Paths.get("src/test/resources/client-private-key-1.pem"));
         factory.engineInit(getKeyStore(), new char[0]);
 
-        KeyManager[] keyManagers = factory.engineGetKeyManagers();
-        assertThat(keyManagers).hasSize(1);
-        assertThat(keyManagers[0]).isInstanceOf(FileWatchingX509ExtendedKeyManager.class);
-    }
-
-    @Test
-    public void defaultKeyManagerForKeyStoreProperty() throws CertificateException, NoSuchAlgorithmException, KeyStoreException, IOException, NoSuchProviderException, UnrecoverableKeyException {
-        try {
-            System.setProperty(KEY_STORE_PROPERTY, "");
-
-            CloudFoundryContainerKeyManagerFactory.SunX509 factory = new CloudFoundryContainerKeyManagerFactory.SunX509(
-                Paths.get("src/test/resources/client-certificates-1.pem"),
-                Paths.get("src/test/resources/client-private-key-1.pem"));
-            factory.engineInit(getKeyStore(), new char[0]);
-
-            KeyManager[] keyManagers = factory.engineGetKeyManagers();
-            assertThat(keyManagers).hasSize(1);
-            assertThat(keyManagers[0]).isNotInstanceOf(FileWatchingX509ExtendedKeyManager.class);
-        } finally {
-            System.clearProperty(KEY_STORE_PROPERTY);
-        }
+        KeyManager keyManager = factory.engineGetKeyManagers()[0];
+        assertThat(keyManager).isInstanceOf(DelegatingX509ExtendedKeyManager.class);
+        assertThat(((DelegatingX509ExtendedKeyManager) keyManager).size()).isEqualTo(2);
     }
 
     @Test
@@ -71,9 +52,10 @@ public final class CloudFoundryContainerKeyManagerFactoryTest {
             Paths.get("src/test/resources/client-private-key-1.pem"));
         factory.engineInit(getKeyStore(), new char[0]);
 
-        KeyManager[] keyManagers = factory.engineGetKeyManagers();
-        assertThat(keyManagers).hasSize(1);
-        assertThat(keyManagers[0]).isNotInstanceOf(FileWatchingX509ExtendedKeyManager.class);
+
+        KeyManager keyManager = factory.engineGetKeyManagers()[0];
+        assertThat(keyManager).isInstanceOf(DelegatingX509ExtendedKeyManager.class);
+        assertThat(((DelegatingX509ExtendedKeyManager) keyManager).size()).isEqualTo(1);
     }
 
     @Test
@@ -83,9 +65,10 @@ public final class CloudFoundryContainerKeyManagerFactoryTest {
             null);
         factory.engineInit(getKeyStore(), new char[0]);
 
-        KeyManager[] keyManagers = factory.engineGetKeyManagers();
-        assertThat(keyManagers).hasSize(1);
-        assertThat(keyManagers[0]).isNotInstanceOf(FileWatchingX509ExtendedKeyManager.class);
+
+        KeyManager keyManager = factory.engineGetKeyManagers()[0];
+        assertThat(keyManager).isInstanceOf(DelegatingX509ExtendedKeyManager.class);
+        assertThat(((DelegatingX509ExtendedKeyManager) keyManager).size()).isEqualTo(1);
     }
 
     private KeyStore getKeyStore() throws KeyStoreException, CertificateException, NoSuchAlgorithmException, IOException {

@@ -49,7 +49,7 @@ final class FileWatcher implements Callable<Void> {
 
     @Override
     public Void call() throws IOException, InterruptedException {
-        this.logger.info(String.format("Started watching %s", this.source));
+        this.logger.info(String.format("Start watching %s", this.source));
 
         final WatchService watchService = this.source.getFileSystem().newWatchService();
         final WatchKey expected = this.source.getParent().register(watchService, ENTRY_CREATE, ENTRY_DELETE, ENTRY_MODIFY);
@@ -79,7 +79,7 @@ final class FileWatcher implements Callable<Void> {
             }
         }
 
-        this.logger.info(String.format("Stopped watching %s", this.source));
+        this.logger.info(String.format("Stop watching %s", this.source));
         return null;
     }
 

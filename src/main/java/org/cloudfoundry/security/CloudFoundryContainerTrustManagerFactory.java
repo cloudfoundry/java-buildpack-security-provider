@@ -20,6 +20,8 @@ import javax.net.ssl.ManagerFactoryParameters;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.TrustManagerFactorySpi;
+import javax.net.ssl.X509ExtendedTrustManager;
+import java.lang.reflect.UndeclaredThrowableException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -28,77 +30,67 @@ import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Logger;
 
 abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFactorySpi {
 
-    static final String TRUST_STORE_PROPERTY = "javax.net.ssl.trustStore";
-
-    private static final List<String> JRE_CERTIFICATES_FILES = Arrays.asList(
-        "lib/security/jssecacerts",
-        "lib/security/cacerts"
-    );
-
     private static final List<Path> OPENSSL_CERTIFICATES_FILES = Arrays.asList(
-        Paths.get("/etc/ssl/certs/ca-certificates.crt"),
-        Paths.get("/usr/local/etc/openssl/cert.pem"),
-        Paths.get("/etc/ssl/cert.pem")
+        Paths.get("src/test/resources/ca-certs.pem")
+//        Paths.get("/etc/ssl/certs/ca-certificates.crt"),
+//        Paths.get("/usr/local/etc/openssl/cert.pem"),
+//        Paths.get("/etc/ssl/cert.pem")
     );
 
     private final Logger logger = Logger.getLogger(this.getClass().getName());
 
-    private final Path jreCertificates;
+    private final String algorithm;
 
-    private final Path openSslCertificates;
+    private final Path certificates;
 
-    private final TrustManagerFactory trustManagerFactory;
+    private final TrustManagerFactory systemTrustManagerFactory;
 
-    private CloudFoundryContainerTrustManagerFactory(String algorithm, Path jreCertificates, Path openSslCertificates) throws NoSuchAlgorithmException, NoSuchProviderException {
-        this.jreCertificates = jreCertificates;
-        this.openSslCertificates = openSslCertificates;
-        this.trustManagerFactory = TrustManagerFactory.getInstance(algorithm, "SunJSSE");
+    private CloudFoundryContainerTrustManagerFactory(String algorithm, Path certificates) {
+        this.algorithm = algorithm;
+        this.certificates = certificates;
+        this.systemTrustManagerFactory = getTrustManagerFactory();
 
         this.logger.fine(String.format("Algorithm: %s", algorithm));
-        this.logger.fine(String.format("JRE Certificates: %s", jreCertificates));
-        this.logger.fine(String.format("OpenSSL Certificates: %s", openSslCertificates));
+        this.logger.fine(String.format("Certificates: %s", certificates));
     }
 
     @Override
     protected final TrustManager[] engineGetTrustManagers() {
-        if (System.getProperty(TRUST_STORE_PROPERTY) == null && this.jreCertificates != null && this.openSslCertificates != null) {
-            this.logger.info(String.format("Added TrustManager for %s and %s", this.openSslCertificates, this.jreCertificates));
-            return new TrustManager[]{new FileWatchingX509ExtendedTrustManager(this.jreCertificates, this.openSslCertificates, this.trustManagerFactory)};
+        List<X509ExtendedTrustManager> delegates = new ArrayList<>();
+
+        for (TrustManager candidate : this.systemTrustManagerFactory.getTrustManagers()) {
+            if (candidate instanceof X509ExtendedTrustManager) {
+                this.logger.info("Adding System Trust Manager");
+                delegates.add((X509ExtendedTrustManager) candidate);
+            }
         }
 
-        return this.trustManagerFactory.getTrustManagers();
+        if (this.certificates != null && Files.exists(this.certificates)) {
+            this.logger.info(String.format("Adding TrustManager for %s", this.certificates));
+            delegates.add(new FileWatchingX509ExtendedTrustManager(this.certificates, getTrustManagerFactory()));
+        }
+
+        return new TrustManager[]{new DelegatingX509ExtendedTrustManager(delegates)};
     }
 
     @Override
     protected final void engineInit(ManagerFactoryParameters managerFactoryParameters) throws InvalidAlgorithmParameterException {
-        this.trustManagerFactory.init(managerFactoryParameters);
+        this.systemTrustManagerFactory.init(managerFactoryParameters);
     }
 
     @Override
     protected final void engineInit(KeyStore keyStore) throws KeyStoreException {
-        this.trustManagerFactory.init(keyStore);
+        this.systemTrustManagerFactory.init(keyStore);
     }
 
-    private static Path getJreCertificatesLocation() {
-        String javaHome = System.getProperty("java.home");
-
-        for (String path : JRE_CERTIFICATES_FILES) {
-            Path certificatesFile = Paths.get(javaHome, path);
-            if (Files.exists(certificatesFile)) {
-                return certificatesFile;
-            }
-        }
-
-        return null;
-    }
-
-    private static Path getOpenSslCertificatesLocation() {
+    private static Path getCertificatesLocation() {
         for (Path certificatesFile : OPENSSL_CERTIFICATES_FILES) {
             if (Files.exists(certificatesFile)) {
                 return certificatesFile;
@@ -108,25 +100,33 @@ abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFact
         return null;
     }
 
+    private TrustManagerFactory getTrustManagerFactory() {
+        try {
+            return TrustManagerFactory.getInstance(this.algorithm, "SunJSSE");
+        } catch (NoSuchAlgorithmException | NoSuchProviderException e) {
+            throw new UndeclaredThrowableException(e);
+        }
+    }
+
     public static final class PKIXFactory extends CloudFoundryContainerTrustManagerFactory {
 
         public PKIXFactory() throws NoSuchProviderException, NoSuchAlgorithmException {
-            this(getJreCertificatesLocation(), getOpenSslCertificatesLocation());
+            this(getCertificatesLocation());
         }
 
-        PKIXFactory(Path jreCertificates, Path openSslCertificates) throws NoSuchAlgorithmException, NoSuchProviderException {
-            super("PKIX", jreCertificates, openSslCertificates);
+        PKIXFactory(Path certificates) throws NoSuchAlgorithmException, NoSuchProviderException {
+            super("PKIX", certificates);
         }
     }
 
     public static final class SimpleFactory extends CloudFoundryContainerTrustManagerFactory {
 
         public SimpleFactory() throws NoSuchProviderException, NoSuchAlgorithmException {
-            this(getJreCertificatesLocation(), getOpenSslCertificatesLocation());
+            this(getCertificatesLocation());
         }
 
-        SimpleFactory(Path jreCertificates, Path openSslCertificates) throws NoSuchAlgorithmException, NoSuchProviderException {
-            super("SunX509", jreCertificates, openSslCertificates);
+        SimpleFactory(Path certificates) throws NoSuchAlgorithmException, NoSuchProviderException {
+            super("SunX509", certificates);
         }
 
     }
