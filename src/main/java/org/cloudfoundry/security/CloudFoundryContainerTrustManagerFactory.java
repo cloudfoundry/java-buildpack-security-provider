@@ -38,10 +38,9 @@ import java.util.logging.Logger;
 abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFactorySpi {
 
     private static final List<Path> OPENSSL_CERTIFICATES_FILES = Arrays.asList(
-        Paths.get("src/test/resources/ca-certs.pem")
-//        Paths.get("/etc/ssl/certs/ca-certificates.crt"),
-//        Paths.get("/usr/local/etc/openssl/cert.pem"),
-//        Paths.get("/etc/ssl/cert.pem")
+        Paths.get("/etc/ssl/certs/ca-certificates.crt"),
+        Paths.get("/usr/local/etc/openssl/cert.pem"),
+        Paths.get("/etc/ssl/cert.pem")
     );
 
     private final Logger logger = Logger.getLogger(this.getClass().getName());
