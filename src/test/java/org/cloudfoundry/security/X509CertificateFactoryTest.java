@@ -21,8 +21,6 @@ import org.junit.Test;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,15 +29,10 @@ import static org.assertj.core.api.Assertions.failBecauseExceptionWasNotThrown;
 public final class X509CertificateFactoryTest {
 
     @Test
-    public void generateKeyStore() throws CertificateException, NoSuchAlgorithmException, KeyStoreException, IOException {
-        assertThat(X509CertificateFactory.generateKeyStore(Paths.get("src/test/resources/cacerts-104.jks"))).hasSize(104);
-    }
-
-    @Test
     public void generateOpenSsl() throws IOException, CertificateException {
-        assertThat(X509CertificateFactory.generateOpenSsl(Paths.get("src/test/resources/client-certificates-1.pem"))).hasSize(2);
-        assertThat(X509CertificateFactory.generateOpenSsl(Paths.get("src/test/resources/server-certificates-48.pem"))).hasSize(48);
-        assertThat(X509CertificateFactory.generateOpenSsl(Paths.get("src/test/resources/server-certificates-173.pem"))).hasSize(173);
+        assertThat(X509CertificateFactory.generate(Paths.get("src/test/resources/client-certificates-1.pem"))).hasSize(2);
+        assertThat(X509CertificateFactory.generate(Paths.get("src/test/resources/server-certificates-48.pem"))).hasSize(48);
+        assertThat(X509CertificateFactory.generate(Paths.get("src/test/resources/server-certificates-173.pem"))).hasSize(173);
     }
 
     @Test
@@ -47,7 +40,7 @@ public final class X509CertificateFactoryTest {
         Path path = Paths.get("src/test/resources/client-private-key-1.pem");
 
         try {
-            X509CertificateFactory.generateOpenSsl(path);
+            X509CertificateFactory.generate(path);
             failBecauseExceptionWasNotThrown(IllegalStateException.class);
         } catch (IllegalStateException e) {
             assertThat(e).hasMessageStartingWith(String.format("%s contains an artifact that is not a certificate: ", path));
