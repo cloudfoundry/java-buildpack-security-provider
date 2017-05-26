@@ -31,17 +31,14 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Logger;
 
 abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFactorySpi {
 
-    private static final List<Path> OPENSSL_CERTIFICATES_FILES = Arrays.asList(
-        Paths.get("/etc/ssl/certs/ca-certificates.crt"),
-        Paths.get("/usr/local/etc/openssl/cert.pem"),
-        Paths.get("/etc/ssl/cert.pem")
-    );
+    private static final String CA_CERTIFICATES_PROPERTY = "CF_CA_CERTS";
+
+    private static final Path DEFAULT_CA_CERTIFICATES = Paths.get("/etc/ssl/certs/ca-certificates.crt");
 
     private final Logger logger = Logger.getLogger(this.getClass().getName());
 
@@ -90,13 +87,8 @@ abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFact
     }
 
     private static Path getCertificatesLocation() {
-        for (Path certificatesFile : OPENSSL_CERTIFICATES_FILES) {
-            if (Files.exists(certificatesFile)) {
-                return certificatesFile;
-            }
-        }
-
-        return null;
+        String candidate = System.getenv(CA_CERTIFICATES_PROPERTY);
+        return candidate != null ? Paths.get(candidate) : DEFAULT_CA_CERTIFICATES;
     }
 
     private TrustManagerFactory getTrustManagerFactory() {

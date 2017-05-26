@@ -92,8 +92,8 @@ abstract class CloudFoundryContainerKeyManagerFactory extends KeyManagerFactoryS
     }
 
     private static Path getProperty(String name) {
-        String value = System.getenv(name);
-        return value != null ? Paths.get(value) : null;
+        String candidate = System.getenv(name);
+        return candidate != null ? Paths.get(candidate) : null;
     }
 
     private KeyManagerFactory getKeyManagerFactory() {
