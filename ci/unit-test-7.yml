@@ -11,7 +11,7 @@ inputs:
 - name: java-buildpack-security-provider
 
 caches:
-- path: m2
+- path: maven
 
 run:
   path: java-buildpack-security-provider/ci/unit-test.sh

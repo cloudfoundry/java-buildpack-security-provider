@@ -2,5 +2,7 @@
 
 set -e -u
 
+ln -fs $PWD/maven $HOME/.m2
+
 cd java-buildpack-security-provider
-./mvnw -q -Dmaven.repo.local=../m2/repository -Dmaven.user.home=../m2 package
+./mvnw -q package
