@@ -46,7 +46,13 @@ abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFact
 
     private final Path certificates;
 
+    private final Object monitor = new Object();
+
     private final TrustManagerFactory systemTrustManagerFactory;
+
+    private FileWatchingX509ExtendedTrustManager cachedContainerTrustManager;
+
+    private X509ExtendedTrustManager cachedSystemTrustManager;
 
     private CloudFoundryContainerTrustManagerFactory(String algorithm, Path certificates) {
         this.algorithm = algorithm;
@@ -61,16 +67,14 @@ abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFact
     protected final TrustManager[] engineGetTrustManagers() {
         List<X509ExtendedTrustManager> delegates = new ArrayList<>();
 
-        for (TrustManager candidate : this.systemTrustManagerFactory.getTrustManagers()) {
-            if (candidate instanceof X509ExtendedTrustManager) {
-                this.logger.info("Adding System Trust Manager");
-                delegates.add((X509ExtendedTrustManager) candidate);
-            }
+        X509ExtendedTrustManager systemTrustManager = getSystemTrustManager();
+        if (systemTrustManager != null) {
+            delegates.add(systemTrustManager);
         }
 
-        if (this.certificates != null && Files.exists(this.certificates)) {
-            this.logger.info(String.format("Adding TrustManager for %s", this.certificates));
-            delegates.add(new FileWatchingX509ExtendedTrustManager(this.certificates, getTrustManagerFactory()));
+        FileWatchingX509ExtendedTrustManager containerTrustManager = getContainerTrustManager();
+        if (containerTrustManager != null) {
+            delegates.add(containerTrustManager);
         }
 
         return new TrustManager[]{new DelegatingX509ExtendedTrustManager(delegates)};
@@ -79,11 +83,13 @@ abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFact
     @Override
     protected final void engineInit(ManagerFactoryParameters managerFactoryParameters) throws InvalidAlgorithmParameterException {
         this.systemTrustManagerFactory.init(managerFactoryParameters);
+        invalidateSystemTrustManager();
     }
 
     @Override
     protected final void engineInit(KeyStore keyStore) throws KeyStoreException {
         this.systemTrustManagerFactory.init(keyStore);
+        invalidateSystemTrustManager();
     }
 
     private static Path getCertificatesLocation() {
@@ -91,11 +97,44 @@ abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFact
         return candidate != null ? Paths.get(candidate) : DEFAULT_CA_CERTIFICATES;
     }
 
+    private FileWatchingX509ExtendedTrustManager getContainerTrustManager() {
+        synchronized (this.monitor) {
+            if (this.cachedContainerTrustManager == null && this.certificates != null && Files.exists(this.certificates)) {
+                this.logger.info(String.format("Adding TrustManager for %s", this.certificates));
+                this.cachedContainerTrustManager = new FileWatchingX509ExtendedTrustManager(this.certificates, getTrustManagerFactory());
+            }
+
+            return this.cachedContainerTrustManager;
+        }
+    }
+
+    private X509ExtendedTrustManager getSystemTrustManager() {
+        synchronized (this.monitor) {
+            if (this.cachedSystemTrustManager == null) {
+                for (TrustManager candidate : this.systemTrustManagerFactory.getTrustManagers()) {
+                    if (candidate instanceof X509ExtendedTrustManager) {
+                        this.logger.info("Adding System Trust Manager");
+                        this.cachedSystemTrustManager = (X509ExtendedTrustManager) candidate;
+                        break;
+                    }
+                }
+            }
+
+            return this.cachedSystemTrustManager;
+        }
+    }
+
     private TrustManagerFactory getTrustManagerFactory() {
         try {
             return TrustManagerFactory.getInstance(this.algorithm, "SunJSSE");
         } catch (NoSuchAlgorithmException | NoSuchProviderException e) {
             throw new UndeclaredThrowableException(e);
+        }
+    }
+
+    private void invalidateSystemTrustManager() {
+        synchronized (this.monitor) {
+            this.cachedSystemTrustManager = null;
         }
     }
 
