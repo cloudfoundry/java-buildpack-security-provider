@@ -47,9 +47,15 @@ abstract class CloudFoundryContainerKeyManagerFactory extends KeyManagerFactoryS
 
     private final Path certificates;
 
+    private final Object monitor = new Object();
+
     private final Path privateKey;
 
     private final KeyManagerFactory systemKeyManagerFactory;
+
+    private FileWatchingX509ExtendedKeyManager cachedContainerKeyManager;
+
+    private X509ExtendedKeyManager cachedSystemKeyManager;
 
     private CloudFoundryContainerKeyManagerFactory(String algorithm, Path certificates, Path privateKey) {
         this.algorithm = algorithm;
@@ -66,16 +72,14 @@ abstract class CloudFoundryContainerKeyManagerFactory extends KeyManagerFactoryS
     protected final KeyManager[] engineGetKeyManagers() {
         List<X509ExtendedKeyManager> delegates = new ArrayList<>();
 
-        for (KeyManager candidate : this.systemKeyManagerFactory.getKeyManagers()) {
-            if (candidate instanceof X509ExtendedKeyManager) {
-                this.logger.info("Adding System Key Manager");
-                delegates.add((X509ExtendedKeyManager) candidate);
-            }
+        X509ExtendedKeyManager systemKeyManager = getSystemKeyManager();
+        if (systemKeyManager != null) {
+            delegates.add(systemKeyManager);
         }
 
-        if (this.certificates != null && Files.exists(this.certificates) && this.privateKey != null && Files.exists(this.privateKey)) {
-            this.logger.info(String.format("Adding Key Manager for %s and %s", this.privateKey, this.certificates));
-            delegates.add(new FileWatchingX509ExtendedKeyManager(this.certificates, this.privateKey, getKeyManagerFactory()));
+        FileWatchingX509ExtendedKeyManager containerKeyManager = getContainerKeyManager();
+        if (containerKeyManager != null) {
+            delegates.add(containerKeyManager);
         }
 
         return new KeyManager[]{new DelegatingX509ExtendedKeyManager(delegates)};
@@ -84,11 +88,13 @@ abstract class CloudFoundryContainerKeyManagerFactory extends KeyManagerFactoryS
     @Override
     protected final void engineInit(ManagerFactoryParameters managerFactoryParameters) throws InvalidAlgorithmParameterException {
         this.systemKeyManagerFactory.init(managerFactoryParameters);
+        invalidateSystemKeyManager();
     }
 
     @Override
     protected final void engineInit(KeyStore keyStore, char[] chars) throws KeyStoreException, NoSuchAlgorithmException, UnrecoverableKeyException {
         this.systemKeyManagerFactory.init(keyStore, chars);
+        invalidateSystemKeyManager();
     }
 
     private static Path getProperty(String name) {
@@ -96,11 +102,44 @@ abstract class CloudFoundryContainerKeyManagerFactory extends KeyManagerFactoryS
         return candidate != null ? Paths.get(candidate) : null;
     }
 
+    private FileWatchingX509ExtendedKeyManager getContainerKeyManager() {
+        synchronized (this.monitor) {
+            if (this.cachedContainerKeyManager == null && this.certificates != null && Files.exists(this.certificates) && this.privateKey != null && Files.exists(this.privateKey)) {
+                this.logger.info(String.format("Adding Key Manager for %s and %s", this.privateKey, this.certificates));
+                this.cachedContainerKeyManager = new FileWatchingX509ExtendedKeyManager(this.certificates, this.privateKey, getKeyManagerFactory());
+            }
+
+            return this.cachedContainerKeyManager;
+        }
+    }
+
     private KeyManagerFactory getKeyManagerFactory() {
         try {
             return KeyManagerFactory.getInstance(this.algorithm, "SunJSSE");
         } catch (NoSuchAlgorithmException | NoSuchProviderException e) {
             throw new UndeclaredThrowableException(e);
+        }
+    }
+
+    private X509ExtendedKeyManager getSystemKeyManager() {
+        synchronized (this.monitor) {
+            if (this.cachedSystemKeyManager == null) {
+                for (KeyManager candidate : this.systemKeyManagerFactory.getKeyManagers()) {
+                    if (candidate instanceof X509ExtendedKeyManager) {
+                        this.logger.info("Adding System Key Manager");
+                        this.cachedSystemKeyManager = (X509ExtendedKeyManager) candidate;
+                        break;
+                    }
+                }
+            }
+
+            return this.cachedSystemKeyManager;
+        }
+    }
+
+    private void invalidateSystemKeyManager() {
+        synchronized (this.monitor) {
+            this.cachedSystemKeyManager = null;
         }
     }
 
