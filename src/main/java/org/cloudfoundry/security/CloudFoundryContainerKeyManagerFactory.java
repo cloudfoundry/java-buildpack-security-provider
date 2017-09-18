@@ -39,7 +39,11 @@ abstract class CloudFoundryContainerKeyManagerFactory extends KeyManagerFactoryS
 
     private static final String CERTIFICATES_PROPERTY = "CF_INSTANCE_CERT";
 
+    private static final Object MONITOR = new Object();
+
     private static final String PRIVATE_KEY_PROPERTY = "CF_INSTANCE_KEY";
+
+    private static FileWatchingX509ExtendedKeyManager CACHED_CONTAINER_KEY_MANAGER;
 
     private final Logger logger = Logger.getLogger(this.getClass().getName());
 
@@ -47,13 +51,9 @@ abstract class CloudFoundryContainerKeyManagerFactory extends KeyManagerFactoryS
 
     private final Path certificates;
 
-    private final Object monitor = new Object();
-
     private final Path privateKey;
 
     private final KeyManagerFactory systemKeyManagerFactory;
-
-    private FileWatchingX509ExtendedKeyManager cachedContainerKeyManager;
 
     private X509ExtendedKeyManager cachedSystemKeyManager;
 
@@ -103,13 +103,13 @@ abstract class CloudFoundryContainerKeyManagerFactory extends KeyManagerFactoryS
     }
 
     private FileWatchingX509ExtendedKeyManager getContainerKeyManager() {
-        synchronized (this.monitor) {
-            if (this.cachedContainerKeyManager == null && this.certificates != null && Files.exists(this.certificates) && this.privateKey != null && Files.exists(this.privateKey)) {
+        synchronized (MONITOR) {
+            if (CACHED_CONTAINER_KEY_MANAGER == null && this.certificates != null && Files.exists(this.certificates) && this.privateKey != null && Files.exists(this.privateKey)) {
                 this.logger.info(String.format("Adding Key Manager for %s and %s", this.privateKey, this.certificates));
-                this.cachedContainerKeyManager = new FileWatchingX509ExtendedKeyManager(this.certificates, this.privateKey, getKeyManagerFactory());
+                CACHED_CONTAINER_KEY_MANAGER = new FileWatchingX509ExtendedKeyManager(this.certificates, this.privateKey, getKeyManagerFactory());
             }
 
-            return this.cachedContainerKeyManager;
+            return CACHED_CONTAINER_KEY_MANAGER;
         }
     }
 
@@ -122,7 +122,7 @@ abstract class CloudFoundryContainerKeyManagerFactory extends KeyManagerFactoryS
     }
 
     private X509ExtendedKeyManager getSystemKeyManager() {
-        synchronized (this.monitor) {
+        synchronized (MONITOR) {
             if (this.cachedSystemKeyManager == null) {
                 for (KeyManager candidate : this.systemKeyManagerFactory.getKeyManagers()) {
                     if (candidate instanceof X509ExtendedKeyManager) {
@@ -138,7 +138,7 @@ abstract class CloudFoundryContainerKeyManagerFactory extends KeyManagerFactoryS
     }
 
     private void invalidateSystemKeyManager() {
-        synchronized (this.monitor) {
+        synchronized (MONITOR) {
             this.cachedSystemKeyManager = null;
         }
     }

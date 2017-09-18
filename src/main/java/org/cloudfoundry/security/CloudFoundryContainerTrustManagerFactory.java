@@ -40,17 +40,17 @@ abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFact
 
     private static final Path DEFAULT_CA_CERTIFICATES = Paths.get("/etc/ssl/certs/ca-certificates.crt");
 
+    private static final Object MONITOR = new Object();
+
+    private static FileWatchingX509ExtendedTrustManager CACHED_CONTAINER_TRUST_MANAGER;
+
     private final Logger logger = Logger.getLogger(this.getClass().getName());
 
     private final String algorithm;
 
     private final Path certificates;
 
-    private final Object monitor = new Object();
-
     private final TrustManagerFactory systemTrustManagerFactory;
-
-    private FileWatchingX509ExtendedTrustManager cachedContainerTrustManager;
 
     private X509ExtendedTrustManager cachedSystemTrustManager;
 
@@ -98,18 +98,18 @@ abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFact
     }
 
     private FileWatchingX509ExtendedTrustManager getContainerTrustManager() {
-        synchronized (this.monitor) {
-            if (this.cachedContainerTrustManager == null && this.certificates != null && Files.exists(this.certificates)) {
+        synchronized (MONITOR) {
+            if (CACHED_CONTAINER_TRUST_MANAGER == null && this.certificates != null && Files.exists(this.certificates)) {
                 this.logger.info(String.format("Adding TrustManager for %s", this.certificates));
-                this.cachedContainerTrustManager = new FileWatchingX509ExtendedTrustManager(this.certificates, getTrustManagerFactory());
+                CACHED_CONTAINER_TRUST_MANAGER = new FileWatchingX509ExtendedTrustManager(this.certificates, getTrustManagerFactory());
             }
 
-            return this.cachedContainerTrustManager;
+            return CACHED_CONTAINER_TRUST_MANAGER;
         }
     }
 
     private X509ExtendedTrustManager getSystemTrustManager() {
-        synchronized (this.monitor) {
+        synchronized (MONITOR) {
             if (this.cachedSystemTrustManager == null) {
                 for (TrustManager candidate : this.systemTrustManagerFactory.getTrustManagers()) {
                     if (candidate instanceof X509ExtendedTrustManager) {
@@ -133,7 +133,7 @@ abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFact
     }
 
     private void invalidateSystemTrustManager() {
-        synchronized (this.monitor) {
+        synchronized (MONITOR) {
             this.cachedSystemTrustManager = null;
         }
     }
