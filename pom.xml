@@ -26,7 +26,7 @@
     <parent>
         <groupId>io.spring.platform</groupId>
         <artifactId>platform-bom</artifactId>
-        <version>Brussels-SR6</version>
+        <version>Brussels-SR7</version>
     </parent>
 
     <groupId>org.cloudfoundry</groupId>
@@ -37,7 +37,7 @@
     <url>https://github.com/cloudfoundry/java-buildpack-container-security-provider</url>
 
     <properties>
-        <bouncycastle.version>1.58</bouncycastle.version>
+        <bouncycastle.version>1.59</bouncycastle.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
