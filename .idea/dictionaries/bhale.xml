@@ -3,6 +3,8 @@
     <words>
       <w>bouncycastle</w>
       <w>jsse</w>
+      <w>keymanager</w>
+      <w>trustmanager</w>
     </words>
   </dictionary>
 </component>

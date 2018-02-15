@@ -26,9 +26,13 @@ import java.util.logging.Logger;
  */
 public final class CloudFoundryContainerProvider extends Provider {
 
-    private final Logger logger = Logger.getLogger(this.getClass().getName());
+    static final String KEY_MANAGER_ENABLED = "org.cloudfoundry.security.keymanager.enabled";
 
-    private static final long serialVersionUID = -254669391239963192L;
+    static final String TRUST_MANAGER_ENABLED = "org.cloudfoundry.security.trustmanager.enabled";
+
+    private static final long serialVersionUID = -2667509590306131953L;
+
+    private final Logger logger = Logger.getLogger(this.getClass().getName());
 
     /**
      * Creates a new instance of the provider.  This registers the following components
@@ -40,17 +44,30 @@ public final class CloudFoundryContainerProvider extends Provider {
     public CloudFoundryContainerProvider() {
         super("Cloud Foundry Container", 1.0, "KeyManagerFactory and TrustManagerFactory based on artifacts within a Cloud Foundry application container");
 
-        put("KeyManagerFactory.SunX509", "org.cloudfoundry.security.CloudFoundryContainerKeyManagerFactory$SunX509");
-        put("KeyManagerFactory.NewSunX509", "org.cloudfoundry.security.CloudFoundryContainerKeyManagerFactory$X509");
-        put("Alg.Alias.KeyManagerFactory.PKIX", "NewSunX509");
+        if (get(KEY_MANAGER_ENABLED)) {
+            this.logger.fine("KeyManager enabled");
 
-        put("TrustManagerFactory.SunX509", "org.cloudfoundry.security.CloudFoundryContainerTrustManagerFactory$SimpleFactory");
-        put("TrustManagerFactory.PKIX", "org.cloudfoundry.security.CloudFoundryContainerTrustManagerFactory$PKIXFactory");
-        put("Alg.Alias.TrustManagerFactory.SunPKIX", "PKIX");
-        put("Alg.Alias.TrustManagerFactory.X509", "PKIX");
-        put("Alg.Alias.TrustManagerFactory.X.509", "PKIX");
+            put("KeyManagerFactory.SunX509", "org.cloudfoundry.security.CloudFoundryContainerKeyManagerFactory$SunX509");
+            put("KeyManagerFactory.NewSunX509", "org.cloudfoundry.security.CloudFoundryContainerKeyManagerFactory$X509");
+            put("Alg.Alias.KeyManagerFactory.PKIX", "NewSunX509");
+        }
+
+        if (get(TRUST_MANAGER_ENABLED)) {
+            this.logger.fine("TrustManager enabled");
+
+            put("TrustManagerFactory.SunX509", "org.cloudfoundry.security.CloudFoundryContainerTrustManagerFactory$SimpleFactory");
+            put("TrustManagerFactory.PKIX", "org.cloudfoundry.security.CloudFoundryContainerTrustManagerFactory$PKIXFactory");
+            put("Alg.Alias.TrustManagerFactory.SunPKIX", "PKIX");
+            put("Alg.Alias.TrustManagerFactory.X509", "PKIX");
+            put("Alg.Alias.TrustManagerFactory.X.509", "PKIX");
+        }
 
         this.logger.fine("Provider loaded");
+    }
+
+    private static boolean get(String key) {
+        String value = System.getProperty(key);
+        return value == null || value.trim().isEmpty() ? true : Boolean.valueOf(value);
     }
 
 }
