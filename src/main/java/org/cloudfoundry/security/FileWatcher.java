@@ -48,34 +48,42 @@ final class FileWatcher implements Callable<Void> {
     }
 
     @Override
-    public Void call() throws IOException, InterruptedException {
+    public Void call() throws IOException {
         this.logger.info(String.format("Start watching %s", this.source));
 
-        final WatchService watchService = this.source.getFileSystem().newWatchService();
-        final WatchKey expected = this.source.getParent().register(watchService, ENTRY_CREATE, ENTRY_DELETE, ENTRY_MODIFY);
+        WatchService watchService = this.source.getFileSystem().newWatchService();
+        WatchKey expected = this.source.getParent().register(watchService, ENTRY_CREATE, ENTRY_DELETE, ENTRY_MODIFY);
 
         for (; ; ) {
-            WatchKey actual = watchService.take();
+            try {
+                this.logger.fine("Waiting for event");
+                WatchKey actual = watchService.take();
 
-            if (!actual.equals(expected)) {
-                this.logger.warning(String.format("Unknown watch key: %s", actual));
-                continue;
-            }
-
-            for (WatchEvent<?> watchEvent : actual.pollEvents()) {
-                Path changed = (Path) watchEvent.context();
-
-                if (!this.source.getFileName().equals(changed)) {
-                    this.logger.fine(String.format("Discarding unimportant file change: %s", changed));
+                if (!actual.equals(expected)) {
+                    this.logger.warning(String.format("Unknown watch key: %s", actual));
                     continue;
                 }
 
-                this.callback.run();
-            }
+                for (WatchEvent<?> watchEvent : actual.pollEvents()) {
+                    Path changed = (Path) watchEvent.context();
 
-            if (!actual.reset()) {
-                this.logger.warning(String.format("Watch key is no longer valid: %s", actual));
+                    if (!this.source.getFileName().equals(changed)) {
+                        this.logger.fine(String.format("Discarding unimportant file change: %s", changed));
+                        continue;
+                    }
+                    this.callback.run();
+                }
+
+                if (!actual.reset()) {
+                    this.logger.warning(String.format("Watch key is no longer valid: %s", actual));
+                    break;
+                }
+
+            } catch (InterruptedException e) {
+                this.logger.warning("Thread interrupted");
                 break;
+            } catch (Exception e) {
+                this.logger.severe(String.format("Suppressing callback error: %s", e.getMessage()));
             }
         }
 
