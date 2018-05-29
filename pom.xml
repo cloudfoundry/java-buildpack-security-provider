@@ -26,13 +26,13 @@
     <parent>
         <groupId>io.spring.platform</groupId>
         <artifactId>platform-bom</artifactId>
-        <version>Brussels-SR7</version>
+        <version>Brussels-SR10</version>
     </parent>
 
     <groupId>org.cloudfoundry</groupId>
     <artifactId>java-buildpack-container-security-provider</artifactId>
     <name>Cloud Foundry Container Security Provider</name>
-    <version>1.14.BUILD-SNAPSHOT</version>
+    <version>1.14.0.BUILD-SNAPSHOT</version>
     <packaging>jar</packaging>
     <url>https://github.com/cloudfoundry/java-buildpack-container-security-provider</url>
 
