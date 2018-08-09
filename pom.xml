@@ -32,7 +32,7 @@
     <groupId>org.cloudfoundry</groupId>
     <artifactId>java-buildpack-container-security-provider</artifactId>
     <name>Cloud Foundry Container Security Provider</name>
-    <version>1.16.0.BUILD-SNAPSHOT</version>
+    <version>1.16.0.RELEASE</version>
     <packaging>jar</packaging>
     <url>https://github.com/cloudfoundry/java-buildpack-container-security-provider</url>
 
