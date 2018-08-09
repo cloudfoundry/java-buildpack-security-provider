@@ -29,7 +29,7 @@ import java.security.NoSuchAlgorithmException;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 
-public final class FileWatchingX509ExtendedTrustManagerTest {
+public final class FileWatchingX509ExtendedTrustManagerTest extends AbstractLoggingTest {
 
     @Test
     public void initializedWithWatchedFile() throws IOException, NoSuchAlgorithmException {

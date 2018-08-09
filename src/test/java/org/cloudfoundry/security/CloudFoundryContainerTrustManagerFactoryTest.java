@@ -29,7 +29,7 @@ import java.security.cert.CertificateException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public final class CloudFoundryContainerTrustManagerFactoryTest {
+public final class CloudFoundryContainerTrustManagerFactoryTest extends AbstractLoggingTest {
 
     @Test
     public void customTrustManager() throws NoSuchProviderException, NoSuchAlgorithmException, CertificateException, KeyStoreException, IOException {
