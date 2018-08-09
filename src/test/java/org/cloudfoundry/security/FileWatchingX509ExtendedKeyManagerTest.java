@@ -25,15 +25,14 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 
-public final class FileWatchingX509ExtendedKeyManagerTest {
+public final class FileWatchingX509ExtendedKeyManagerTest extends AbstractLoggingTest {
 
     @Test
-    public void initializedWithWatchedFile() throws IOException, NoSuchProviderException, NoSuchAlgorithmException {
+    public void initializedWithWatchedFile() throws IOException, NoSuchAlgorithmException {
         Path watchedCertificates = getWatchedCertificatesFile();
         Files.copy(Paths.get("src/test/resources/client-certificates-1.pem"), watchedCertificates);
 
@@ -46,7 +45,7 @@ public final class FileWatchingX509ExtendedKeyManagerTest {
     }
 
     @Test
-    public void watchesWatchedFile() throws IOException, InterruptedException, NoSuchProviderException, NoSuchAlgorithmException {
+    public void watchesWatchedFile() throws IOException, InterruptedException, NoSuchAlgorithmException {
         Path watchedCertificates = getWatchedCertificatesFile();
         Files.copy(Paths.get("src/test/resources/client-certificates-1.pem"), watchedCertificates);
 

@@ -21,21 +21,24 @@ import java.nio.file.Path;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
 import static java.nio.file.StandardWatchEventKinds.ENTRY_DELETE;
 import static java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY;
 
-final class FileWatcher implements Callable<Void> {
+final class FileWatcher implements Runnable, Thread.UncaughtExceptionHandler, ThreadFactory {
 
     private final Logger logger = Logger.getLogger(this.getClass().getName());
 
     private final Runnable callback;
+
+    private final AtomicInteger counter = new AtomicInteger();
 
     private final ExecutorService executorService;
 
@@ -43,16 +46,34 @@ final class FileWatcher implements Callable<Void> {
 
     FileWatcher(Path source, Runnable callback) {
         this.callback = callback;
-        this.executorService = Executors.newSingleThreadExecutor(new FileWatcherThreadFactory(source));
+        this.executorService = Executors.newSingleThreadExecutor(this);
         this.source = source;
     }
 
     @Override
-    public Void call() throws IOException {
+    public Thread newThread(Runnable r) {
+        Thread thread = new Thread(r);
+        thread.setDaemon(true);
+        thread.setName(String.format("file-watcher-%s-%d", this.source.getName(this.source.getNameCount() - 1), this.counter.getAndIncrement()));
+        thread.setUncaughtExceptionHandler(this);
+
+        return thread;
+    }
+
+    @Override
+    public void run() {
         this.logger.info(String.format("Start watching %s", this.source));
 
-        WatchService watchService = this.source.getFileSystem().newWatchService();
-        WatchKey expected = this.source.getParent().register(watchService, ENTRY_CREATE, ENTRY_DELETE, ENTRY_MODIFY);
+        WatchService watchService;
+        WatchKey expected;
+
+        try {
+            watchService = this.source.getFileSystem().newWatchService();
+            expected = this.source.getParent().register(watchService, ENTRY_CREATE, ENTRY_DELETE, ENTRY_MODIFY);
+        } catch (IOException e) {
+            this.logger.log(Level.SEVERE, "Unable to setup file watcher", e);
+            return;
+        }
 
         for (; ; ) {
             try {
@@ -78,40 +99,24 @@ final class FileWatcher implements Callable<Void> {
                     this.logger.warning(String.format("Watch key is no longer valid: %s", actual));
                     break;
                 }
-
             } catch (InterruptedException e) {
                 this.logger.warning("Thread interrupted");
+                Thread.currentThread().interrupt();
                 break;
-            } catch (Exception e) {
-                this.logger.severe(String.format("Suppressing callback error: %s", e.getMessage()));
             }
         }
 
         this.logger.info(String.format("Stop watching %s", this.source));
-        return null;
+    }
+
+    @Override
+    public void uncaughtException(Thread t, Throwable e) {
+        this.logger.log(Level.WARNING, "Suppressing watch error", e);
+        watch();
     }
 
     void watch() {
-        this.executorService.submit(this);
-    }
-
-    private static class FileWatcherThreadFactory implements ThreadFactory {
-
-        private final Path source;
-
-        private FileWatcherThreadFactory(Path source) {
-            this.source = source;
-        }
-
-        @Override
-        public Thread newThread(Runnable r) {
-            Thread thread = new Thread(r);
-            thread.setDaemon(true);
-            thread.setName(String.format("file-watcher-%s", this.source));
-
-            return thread;
-        }
-
+        this.executorService.execute(this);
     }
 
 }

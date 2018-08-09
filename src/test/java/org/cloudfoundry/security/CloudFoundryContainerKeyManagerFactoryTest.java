@@ -30,7 +30,7 @@ import java.security.cert.CertificateException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public final class CloudFoundryContainerKeyManagerFactoryTest {
+public final class CloudFoundryContainerKeyManagerFactoryTest extends AbstractLoggingTest {
 
     @Test
     public void customKeyManager() throws NoSuchProviderException, NoSuchAlgorithmException, CertificateException, KeyStoreException, IOException, UnrecoverableKeyException {
