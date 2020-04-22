@@ -29,7 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public final class DelegatingX509ExtendedTrustManagerTest {
@@ -48,7 +48,7 @@ public final class DelegatingX509ExtendedTrustManagerTest {
         this.delegatingTrustManager.checkClientTrusted(x509Certificates, s);
 
         verify(this.trustManager1).checkClientTrusted(x509Certificates, s);
-        verifyZeroInteractions(this.trustManager1);
+        verifyNoInteractions(this.trustManager2);
     }
 
     @Test
@@ -87,7 +87,7 @@ public final class DelegatingX509ExtendedTrustManagerTest {
         this.delegatingTrustManager.checkClientTrusted(x509Certificates, s, socket);
 
         verify(this.trustManager1).checkClientTrusted(x509Certificates, s, socket);
-        verifyZeroInteractions(this.trustManager2);
+        verifyNoInteractions(this.trustManager2);
     }
 
     @Test
@@ -128,7 +128,7 @@ public final class DelegatingX509ExtendedTrustManagerTest {
         this.delegatingTrustManager.checkClientTrusted(x509Certificates, s, sslEngine);
 
         verify(this.trustManager1).checkClientTrusted(x509Certificates, s, sslEngine);
-        verifyZeroInteractions(this.trustManager2);
+        verifyNoInteractions(this.trustManager2);
     }
 
     @Test
@@ -168,7 +168,7 @@ public final class DelegatingX509ExtendedTrustManagerTest {
         this.delegatingTrustManager.checkServerTrusted(x509Certificates, s);
 
         verify(this.trustManager1).checkServerTrusted(x509Certificates, s);
-        verifyZeroInteractions(this.trustManager2);
+        verifyNoInteractions(this.trustManager2);
     }
 
     @Test
@@ -207,7 +207,7 @@ public final class DelegatingX509ExtendedTrustManagerTest {
         this.delegatingTrustManager.checkServerTrusted(x509Certificates, s, socket);
 
         verify(this.trustManager1).checkServerTrusted(x509Certificates, s, socket);
-        verifyZeroInteractions(this.trustManager2);
+        verifyNoInteractions(this.trustManager2);
     }
 
     @Test
@@ -248,7 +248,7 @@ public final class DelegatingX509ExtendedTrustManagerTest {
         this.delegatingTrustManager.checkServerTrusted(x509Certificates, s, sslEngine);
 
         verify(this.trustManager1).checkServerTrusted(x509Certificates, s, sslEngine);
-        verifyZeroInteractions(this.trustManager2);
+        verifyNoInteractions(this.trustManager2);
     }
 
     @Test
