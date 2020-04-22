@@ -37,7 +37,7 @@
     <url>https://github.com/cloudfoundry/java-buildpack-container-security-provider</url>
 
     <properties>
-        <bouncycastle.version>1.60</bouncycastle.version>
+        <bouncycastle.version>1.65</bouncycastle.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
