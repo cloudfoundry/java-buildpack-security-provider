@@ -98,6 +98,17 @@
                 <artifactId>maven-shade-plugin</artifactId>
                 <version>3.2.3</version>
                 <configuration>
+                    <filters>
+                        <filter>
+                            <artifact>*:*</artifact>
+                            <excludes>
+                              <exclude>META-INF/*.DSA</exclude>
+                              <exclude>META-INF/*.RSA</exclude>
+                              <exclude>META-INF/*.SF</exclude>
+                              <exclude>META-INF/MANIFEST.MF</exclude>
+                            </excludes>
+                        </filter>
+                    </filters>
                     <minimizeJar>true</minimizeJar>
                     <relocations>
                         <relocation>
