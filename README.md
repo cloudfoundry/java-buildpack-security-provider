@@ -2,14 +2,13 @@
 
 | Job | Status
 | --- | ------
-| `unit-test-7` | [![unit-test-master](https://java-experience.ci.springapps.io/api/v1/teams/java-experience/pipelines/security-provider/jobs/unit-test-7/badge)](https://java-experience.ci.springapps.io/teams/java-experience/pipelines/security-provider/jobs/unit-test-7)
 | `unit-test-8` | [![unit-test-master](https://java-experience.ci.springapps.io/api/v1/teams/java-experience/pipelines/security-provider/jobs/unit-test-8/badge)](https://java-experience.ci.springapps.io/teams/java-experience/pipelines/security-provider/jobs/unit-test-8)
 | `deploy` | [![deploy-master](https://java-experience.ci.springapps.io/api/v1/teams/java-experience/pipelines/security-provider/jobs/deploy/badge)](https://java-experience.ci.springapps.io/teams/java-experience/pipelines/security-provider/jobs/deploy)
 
 The `java-buildpack-security-provider` is a utility that watches for changes to container identity and trust stores and dynamically updates the KeyManager and TrustManager of an application.
 
 ## Development
-The project depends on Java 7.  To build from source, run the following:
+The project depends on Java 8.  To build from source, run the following:
 
 ```shell
 $ ./mvnw clean package
