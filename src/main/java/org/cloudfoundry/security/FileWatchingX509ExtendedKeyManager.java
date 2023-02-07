@@ -24,16 +24,20 @@ import java.io.IOException;
 import java.lang.reflect.UndeclaredThrowableException;
 import java.net.Socket;
 import java.nio.file.Path;
+import java.security.InvalidKeyException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.Principal;
 import java.security.PrivateKey;
+import java.security.Signature;
+import java.security.SignatureException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Logger;
 
@@ -124,24 +128,47 @@ final class FileWatchingX509ExtendedKeyManager extends X509ExtendedKeyManager {
             PrivateKey privateKey = PrivateKeyFactory.generate(this.privateKey);
             List<X509Certificate> certificates = X509CertificateFactory.generate(this.certificates);
 
+            // private key should match the first certificate in the chain
+            if (!validateCertificateKey(privateKey, certificates.get(0))) {
+                this.logger.fine("Private key doesn't match certificate");
+                return null;
+            }
+
             KeyStoreEntryCollector.accumulate(keyStore, privateKey, new char[0], certificates.toArray(new Certificate[certificates.size()]));
 
             return keyStore;
-        } catch (CertificateException | IOException | KeyStoreException | NoSuchAlgorithmException e) {
+        } catch (CertificateException | IOException | KeyStoreException | NoSuchAlgorithmException | InvalidKeyException | SignatureException e) {
             throw new UndeclaredThrowableException(e);
         }
     }
 
+    public static boolean validateCertificateKey(PrivateKey key, X509Certificate certificate) throws NoSuchAlgorithmException, InvalidKeyException, SignatureException {
+        byte[] challenge = new byte[10000];
+        ThreadLocalRandom.current().nextBytes(challenge);
+
+        Signature sig = Signature.getInstance("SHA256withRSA");
+        sig.initSign(key);
+        sig.update(challenge);
+        byte[] signature = sig.sign();
+
+        sig.initVerify(certificate.getPublicKey());
+        sig.update(challenge);
+
+        return sig.verify(signature);
+    }
     private final class FileWatcherCallback implements Runnable {
 
         @Override
         public void run() {
-            if (FileWatchingX509ExtendedKeyManager.this.keyManager.getAndSet(getKeyManager(getKeyStore())) == null) {
-                FileWatchingX509ExtendedKeyManager.this.logger.info(String.format("Initialized KeyManager for %s and %s", FileWatchingX509ExtendedKeyManager.this.privateKey,
-                    FileWatchingX509ExtendedKeyManager.this.certificates));
-            } else {
-                FileWatchingX509ExtendedKeyManager.this.logger.info(String.format("Updated KeyManager for %s and %s", FileWatchingX509ExtendedKeyManager.this.privateKey,
-                    FileWatchingX509ExtendedKeyManager.this.certificates));
+            KeyStore keyStore = getKeyStore();
+            if (keyStore != null) {
+                if (FileWatchingX509ExtendedKeyManager.this.keyManager.getAndSet(getKeyManager(keyStore)) == null) {
+                    FileWatchingX509ExtendedKeyManager.this.logger.info(String.format("Initialized KeyManager for %s and %s", FileWatchingX509ExtendedKeyManager.this.privateKey,
+                        FileWatchingX509ExtendedKeyManager.this.certificates));
+                } else {
+                    FileWatchingX509ExtendedKeyManager.this.logger.info(String.format("Updated KeyManager for %s and %s", FileWatchingX509ExtendedKeyManager.this.privateKey,
+                        FileWatchingX509ExtendedKeyManager.this.certificates));
+                }
             }
         }
 
