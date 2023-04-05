@@ -55,7 +55,8 @@ final class FileWatchingX509ExtendedKeyManager extends X509ExtendedKeyManager {
         this.keyManagerFactory = keyManagerFactory;
 
         new FileWatcher(this.certificates, new FileWatcherCallback()).watch();
-        new FileWatcher(this.privateKey, new FileWatcherCallback()).watch();
+        // disable watching the key file to prevent race condition bug - a certificate file change covers the key change
+        // new FileWatcher(this.privateKey, new FileWatcherCallback()).watch();
 
         if (this.keyManager.compareAndSet(null, getKeyManager(getKeyStore()))) {
             this.logger.info(String.format("Initialized KeyManager for %s and %s", this.privateKey, this.certificates));
