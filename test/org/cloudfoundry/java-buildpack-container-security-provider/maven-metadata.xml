@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <groupId>org.cloudfoundry</groupId>
+  <artifactId>java-buildpack-container-security-provider</artifactId>
+  <versioning>
+    <versions>
+      <version>1.20.0.BUILD-SNAPSHOT</version>
+    </versions>
+    <lastUpdated>20230404114152</lastUpdated>
+  </versioning>
+</metadata>
