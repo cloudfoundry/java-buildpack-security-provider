@@ -137,12 +137,14 @@ final class FileWatchingX509ExtendedKeyManager extends X509ExtendedKeyManager {
 
         @Override
         public void run() {
-            if (FileWatchingX509ExtendedKeyManager.this.keyManager.getAndSet(getKeyManager(getKeyStore())) == null) {
-                FileWatchingX509ExtendedKeyManager.this.logger.info(String.format("Initialized KeyManager for %s and %s", FileWatchingX509ExtendedKeyManager.this.privateKey,
-                    FileWatchingX509ExtendedKeyManager.this.certificates));
-            } else {
-                FileWatchingX509ExtendedKeyManager.this.logger.info(String.format("Updated KeyManager for %s and %s", FileWatchingX509ExtendedKeyManager.this.privateKey,
-                    FileWatchingX509ExtendedKeyManager.this.certificates));
+            synchronized (FileWatchingX509ExtendedKeyManager.this.keyManager) {
+                if (FileWatchingX509ExtendedKeyManager.this.keyManager.getAndSet(getKeyManager(getKeyStore())) == null) {
+                    FileWatchingX509ExtendedKeyManager.this.logger.info(String.format("Initialized KeyManager for %s and %s", FileWatchingX509ExtendedKeyManager.this.privateKey,
+                        FileWatchingX509ExtendedKeyManager.this.certificates));
+                } else {
+                    FileWatchingX509ExtendedKeyManager.this.logger.info(String.format("Updated KeyManager for %s and %s", FileWatchingX509ExtendedKeyManager.this.privateKey,
+                        FileWatchingX509ExtendedKeyManager.this.certificates));
+                }
             }
         }
 
