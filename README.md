@@ -1,3 +1,5 @@
+The issue this fork was created for has been solved in the main project (sometimes not properly refreshing the instance client certificate). Prject is archived.
+
 # Java Buildpack Security Provider
 
 | Job | Status
