@@ -88,6 +88,14 @@
             <version>${logback.version}</version>
             <scope>test</scope>
         </dependency>
+        <!-- Declared directly: logback-classic 1.2.13 transitively pulls slf4j-api 1.7.32, which
+             would otherwise win dependency mediation over the 1.7.36 used by jul-to-slf4j. -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>${slf4j.version}</version>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>jul-to-slf4j</artifactId>
