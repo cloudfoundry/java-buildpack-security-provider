@@ -1,0 +1,118 @@
+name: CI
+
+on:
+  push:
+    paths-ignore:
+      - 'README.md'
+      - 'LICENSE'
+      - 'NOTICE'
+  pull_request:
+    branches: [ main ]
+    paths-ignore:
+      - 'README.md'
+      - 'LICENSE'
+      - 'NOTICE'
+  workflow_dispatch:
+
+# Cancel a run superseded by a newer one for the same ref, e.g. a second push to a branch before
+# the first build finished. Push and pull_request runs deliberately stay in separate groups: a push
+# run builds the branch head, a pull_request run builds the merge with the base branch, and letting
+# either cancel the other could leave the merge untested.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # Never cancel on main: a cancelled snapshot job could leave the rolling release deleted. Runs in
+  # the same group never overlap; on main a newer run waits for the running one to finish.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      # The shipped jar must stay Java 8 bytecode, so build and test with Java 8 too.
+      - name: Set up Java 8
+        uses: actions/setup-java@v6.0.0
+        with:
+          java-version: '8'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Build and test
+        run: ./mvnw -q package
+
+      - name: Upload jar artifact
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: java-buildpack-container-security-provider
+          path: |
+            target/*.jar
+            !target/*-sources.jar
+            !target/*-javadoc.jar
+            !target/original-*.jar
+          if-no-files-found: error
+
+  snapshot:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Set up Java 8
+        uses: actions/setup-java@v6.0.0
+        with:
+          java-version: '8'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      # Only a -SNAPSHOT revision belongs in the rolling snapshot release; releases come from tags.
+      - name: Check snapshot version
+        id: version
+        run: |
+          VERSION=$(./mvnw help:evaluate -Dexpression=project.version -q -DforceStdout)
+          echo "Project version: ${VERSION}"
+          if [[ "${VERSION}" == *-SNAPSHOT ]]; then
+            echo "snapshot=true" >> "$GITHUB_OUTPUT"
+            # e.g. 1.21.0-SNAPSHOT built from a1b2c3d becomes 1.21.0-a1b2c3d-SNAPSHOT
+            echo "revision=${VERSION%-SNAPSHOT}-$(git rev-parse --short HEAD)-SNAPSHOT" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::main is at ${VERSION}, not a -SNAPSHOT: skipping the rolling snapshot release."
+          fi
+
+      # Test and build in one invocation, so the published jar is the binary that passed the tests.
+      - name: Build and test
+        if: steps.version.outputs.snapshot == 'true'
+        run: ./mvnw -B -Drevision="${{ steps.version.outputs.revision }}" verify
+
+      - name: Collect artifacts
+        if: steps.version.outputs.snapshot == 'true'
+        id: artifacts
+        run: |
+          JAR=$(ls target/java-buildpack-container-security-provider-*SNAPSHOT.jar \
+                | grep -v 'sources\|javadoc\|original' | head -1)
+          SOURCES=$(ls target/java-buildpack-container-security-provider-*SNAPSHOT-sources.jar \
+                    | head -1)
+          echo "jar=$JAR" >> $GITHUB_OUTPUT
+          echo "sources=$SOURCES" >> $GITHUB_OUTPUT
+
+      - name: Recreate rolling snapshot release
+        if: steps.version.outputs.snapshot == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          REVISION="${{ steps.version.outputs.revision }}"
+          # The release may not exist yet; moving the tag must succeed, so the release never
+          # ends up on a stale commit.
+          gh release delete snapshot --yes 2>/dev/null || true
+          git tag -f snapshot "${{ github.sha }}"
+          git push -f origin refs/tags/snapshot
+          gh release create snapshot \
+            --verify-tag \
+            --prerelease \
+            --title "Latest SNAPSHOT ($REVISION)" \
+            --notes "Automatically published on every push to \`main\`. Always reflects the latest snapshot build, from commit ${{ github.sha }}." \
+            "${{ steps.artifacts.outputs.jar }}" \
+            "${{ steps.artifacts.outputs.sources }}"

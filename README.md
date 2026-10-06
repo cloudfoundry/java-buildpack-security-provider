@@ -14,6 +14,8 @@ The project depends on Java 8.  To build from source, run the following:
 $ ./mvnw clean package
 ```
 
+See [docs/RELEASE.md](docs/RELEASE.md) for how to cut a release and how it reaches the Java buildpack.
+
 ## Contributing
 [Pull requests][u] and [Issues][e] are welcome.
 

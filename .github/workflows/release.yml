@@ -1,0 +1,68 @@
+name: Release
+
+# Publishing a GitHub release with a new tag vX.Y.Z builds that tag as version X.Y.Z and attaches the
+# jars. The version comes from the tag (-Drevision), so no version-bump commit is needed beforehand.
+
+on:
+  release:
+    types: [ published ]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag to rebuild and re-attach artifacts for (e.g. v1.21.0)'
+        required: true
+
+permissions:
+  contents: write
+
+# A second run for the same tag (publish plus a manual re-run) waits instead of racing the upload.
+concurrency:
+  group: release-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # Pre-releases, such as the rolling snapshot, are not versioned releases.
+    if: github.event_name == 'workflow_dispatch' || !github.event.release.prerelease
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - name: Validate tag
+        run: |
+          if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "ERROR: release tag '${TAG}' must look like vX.Y.Z (e.g. v1.21.0)." >&2
+            echo "Delete this release and its tag, then publish a new release with a vX.Y.Z tag." >&2
+            exit 1
+          fi
+          echo "VERSION=${TAG#v}" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: refs/tags/${{ env.TAG }}
+
+      - name: Set up Java 8
+        uses: actions/setup-java@v6.0.0
+        with:
+          java-version: '8'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      # The release profile fails the build if the project or any dependency is still a -SNAPSHOT.
+      - name: Build and test
+        run: ./mvnw -B -Prelease -Drevision="${VERSION}" verify
+
+      # Publishing to Maven Central -- which the java-buildpack dependency pipeline watches -- goes
+      # here once the org.cloudfoundry signing key and Central credentials are available as secrets.
+
+      # Naming each jar by version also fails the upload if the build produced a different version.
+      - name: Attach artifacts to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DIR=target
+          gh release upload "${TAG}" --clobber \
+            "${DIR}/java-buildpack-container-security-provider-${VERSION}.jar" \
+            "${DIR}/java-buildpack-container-security-provider-${VERSION}-sources.jar" \
+            "${DIR}/java-buildpack-container-security-provider-${VERSION}-javadoc.jar"
