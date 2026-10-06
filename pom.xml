@@ -259,15 +259,4 @@
         </profile>
     </profiles>
 
-    <pluginRepositories>
-        <pluginRepository>
-            <snapshots>
-                <enabled>false</enabled>
-            </snapshots>
-            <id>jfrog-jars</id>
-            <name>jfrog-jars</name>
-            <url>https://oss.jfrog.org/artifactory/jfrog-jars/</url>
-        </pluginRepository>
-    </pluginRepositories>
-
 </project>

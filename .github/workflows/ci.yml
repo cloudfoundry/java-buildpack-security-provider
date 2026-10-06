@@ -3,14 +3,12 @@ name: CI
 on:
   push:
     paths-ignore:
-      - '.github/**'
       - 'README.md'
       - 'LICENSE'
       - 'NOTICE'
   pull_request:
     branches: [ main ]
     paths-ignore:
-      - '.github/**'
       - 'README.md'
       - 'LICENSE'
       - 'NOTICE'
@@ -22,7 +20,8 @@ on:
 # either cancel the other could leave the merge untested.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  # Never cancel on main: a cancelled snapshot job could leave the rolling release deleted.
+  # Never cancel on main: a cancelled snapshot job could leave the rolling release deleted. Runs in
+  # the same group never overlap; on main a newer run waits for the running one to finish.
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
@@ -105,11 +104,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           REVISION="${{ steps.version.outputs.revision }}"
+          # The release may not exist yet; moving the tag must succeed, so the release never
+          # ends up on a stale commit.
           gh release delete snapshot --yes 2>/dev/null || true
-          git push origin :refs/tags/snapshot 2>/dev/null || true
+          git tag -f snapshot "${{ github.sha }}"
+          git push -f origin refs/tags/snapshot
           gh release create snapshot \
+            --verify-tag \
             --prerelease \
-            --target "${{ github.sha }}" \
             --title "Latest SNAPSHOT ($REVISION)" \
             --notes "Automatically published on every push to \`main\`. Always reflects the latest snapshot build, from commit ${{ github.sha }}." \
             "${{ steps.artifacts.outputs.jar }}" \
