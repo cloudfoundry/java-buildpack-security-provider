@@ -25,6 +25,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.security.NoSuchAlgorithmException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
@@ -46,6 +48,7 @@ public final class FileWatchingX509ExtendedKeyManagerTest extends AbstractLoggin
 
     @Test
     public void watchesWatchedFile() throws IOException, InterruptedException, NoSuchAlgorithmException {
+        Logger.getGlobal().setLevel(Level.ALL);
         Path watchedCertificates = getWatchedCertificatesFile();
         Files.copy(Paths.get("src/test/resources/client-certificates-1.pem"), watchedCertificates);
 
@@ -58,15 +61,20 @@ public final class FileWatchingX509ExtendedKeyManagerTest extends AbstractLoggin
 
         Thread.sleep(5_000);
         Files.copy(Paths.get("src/test/resources/client-certificates-2.pem"), watchedCertificates, StandardCopyOption.REPLACE_EXISTING);
+        Thread.sleep(5_000);
+        checkAliasPresence(keyManager,alias,true);
         Files.copy(Paths.get("src/test/resources/client-private-key-2.pem"), watchedPrivateKey, StandardCopyOption.REPLACE_EXISTING);
+        checkAliasPresence(keyManager,alias,false);
+    }
 
+    private void checkAliasPresence(FileWatchingX509ExtendedKeyManager keyManager, String alias, boolean present) throws InterruptedException {
         long timeout = System.currentTimeMillis() + 300_000;
         for (; ; ) {
             if (System.currentTimeMillis() > timeout) {
                 fail("Failed to update within timeout");
             }
 
-            if (!keyManager.getClientAliases("RSA", null)[0].equals(alias)) {
+            if (keyManager.getClientAliases("RSA", null)[0].equals(alias) == present) {
                 return;
             }
 
