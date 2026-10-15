@@ -27,10 +27,24 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
+import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.LogRecord;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 public final class CloudFoundryContainerKeyManagerFactoryTest extends AbstractLoggingTest {
+
+    @Test
+    public void logsSystemKeyManagerAtFine() throws Exception {
+        List<LogRecord> records = LogRecorder.record(CloudFoundryContainerKeyManagerFactory.SunX509.class, () -> {
+            CloudFoundryContainerKeyManagerFactory.SunX509 factory = new CloudFoundryContainerKeyManagerFactory.SunX509(null, null);
+            factory.engineInit(getKeyStore(), new char[0]);
+            factory.engineGetKeyManagers();
+        });
+
+        assertThat(records).filteredOn(r -> "Adding System Key Manager".equals(r.getMessage())).extracting(LogRecord::getLevel).containsExactly(Level.FINE);
+    }
 
     @Test
     public void customKeyManager() throws NoSuchProviderException, NoSuchAlgorithmException, CertificateException, KeyStoreException, IOException, UnrecoverableKeyException {

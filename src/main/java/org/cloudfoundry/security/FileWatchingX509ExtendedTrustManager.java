@@ -49,7 +49,7 @@ final class FileWatchingX509ExtendedTrustManager extends X509ExtendedTrustManage
         new FileWatcher(this.certificates, new FileWatcherCallback()).watch();
 
         if (this.trustManager.compareAndSet(null, getTrustManager(getKeyStore()))) {
-            this.logger.info(String.format("Initialized TrustManager for %s", this.certificates));
+            this.logger.info(() -> String.format("Initialized TrustManager for %s", this.certificates));
         }
     }
 
@@ -123,9 +123,9 @@ final class FileWatchingX509ExtendedTrustManager extends X509ExtendedTrustManage
         @Override
         public void run() {
             if (FileWatchingX509ExtendedTrustManager.this.trustManager.getAndSet(getTrustManager(getKeyStore())) == null) {
-                FileWatchingX509ExtendedTrustManager.this.logger.info(String.format("Initialized TrustManager for %s", FileWatchingX509ExtendedTrustManager.this.certificates));
+                FileWatchingX509ExtendedTrustManager.this.logger.info(() -> String.format("Initialized TrustManager for %s", FileWatchingX509ExtendedTrustManager.this.certificates));
             } else {
-                FileWatchingX509ExtendedTrustManager.this.logger.info(String.format("Updated TrustManager for %s", FileWatchingX509ExtendedTrustManager.this.certificates));
+                FileWatchingX509ExtendedTrustManager.this.logger.info(() -> String.format("Updated TrustManager for %s", FileWatchingX509ExtendedTrustManager.this.certificates));
             }
         }
 
