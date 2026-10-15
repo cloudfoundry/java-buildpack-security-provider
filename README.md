@@ -7,6 +7,27 @@
 
 The `java-buildpack-security-provider` is a utility that watches for changes to container identity and trust stores and dynamically updates the KeyManager and TrustManager of an application.
 
+## Certificate rotation
+The KeyManager is reloaded when the instance identity certificate (`CF_INSTANCE_CERT`) changes. The Diego executor writes the new private key (`CF_INSTANCE_KEY`) before the new certificate, so only the certificate file is watched. Each load logs the certificate serial, subject and when the certificate chain expires (earliest expiry in the chain, in UTC).
+
+Before replacing the KeyManager, the private key is checked against the certificate. Only RSA keys, the type the Diego executor issues, are checked; other key types are accepted with an informational log message. On a mismatch or an empty certificate file the current KeyManager is kept and a warning is logged:
+
+```
+Private key ... does not match certificate ..., keeping current KeyManager (certificate chain expires at 2026-10-15T09:30:00Z)
+```
+
+This is not retried. With Diego defaults (24 hour validity, rotation 30 minutes before expiry) the kept certificate expires about 30 minutes later, after which TLS handshakes using it fail. A loaded certificate chain that has already expired is installed as before, with a warning:
+
+```
+Certificate chain ... expired at 2026-10-15T09:30:00Z, TLS handshakes using it will fail
+```
+
+Alert on these warnings and restart the affected instance to get a new key pair:
+
+```shell
+$ cf restart-app-instance APP_NAME INDEX
+```
+
 ## Development
 The project depends on Java 8.  To build from source, run the following:
 
