@@ -152,8 +152,15 @@ public final class FileWatchingX509ExtendedKeyManagerTest extends AbstractLoggin
         assertThat(FileWatchingX509ExtendedKeyManager.notAfter(certificates)).isEqualTo(Instant.parse("2017-05-19T17:58:20Z"));
     }
 
+    // The file watcher can install a new KeyManager between the two calls; aliases change on every load, so retry.
     private X509Certificate getLeafCertificate(FileWatchingX509ExtendedKeyManager keyManager) {
-        return keyManager.getCertificateChain(keyManager.getClientAliases("RSA", null)[0])[0];
+        for (int i = 0; i < 100; i++) {
+            X509Certificate[] chain = keyManager.getCertificateChain(keyManager.getClientAliases("RSA", null)[0]);
+            if (chain != null) {
+                return chain[0];
+            }
+        }
+        throw new IllegalStateException("No stable certificate chain");
     }
 
     private Path getWatchedCertificatesFile() throws IOException {
