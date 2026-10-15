@@ -146,7 +146,7 @@ final class FileWatchingX509ExtendedKeyManager extends X509ExtendedKeyManager {
 
         PublicKey publicKey = certificates.get(0).getPublicKey();
         if (!(privateKey instanceof RSAKey) || !(publicKey instanceof RSAKey)) {
-            this.logger.info(String.format("Private key %s is not an RSA key, not checked against certificate %s. This is unexpected: " +
+            this.logger.info(() -> String.format("Private key %s is not an RSA key, not checked against certificate %s. This is unexpected: " +
                 "check the key generator, the security provider probably needs an update", this.privateKey, this.certificates));
             return true;
         }
@@ -172,8 +172,9 @@ final class FileWatchingX509ExtendedKeyManager extends X509ExtendedKeyManager {
             // No retry: the Diego executor never writes a mismatched pair, and the next certificate change
             // triggers a new update. Until then the current pair, still valid, beats one that cannot authenticate.
             if (this.keyManager.get() != null && !matches(privateKey, certificates)) {
-                this.logger.warning(String.format("Private key %s does not match certificate %s, keeping current KeyManager (certificate chain expires at %s)",
-                    this.privateKey, this.certificates, this.notAfter));
+                Instant currentNotAfter = this.notAfter;
+                this.logger.warning(() -> String.format("Private key %s does not match certificate %s, keeping current KeyManager (certificate chain expires at %s)",
+                    this.privateKey, this.certificates, currentNotAfter));
                 return;
             }
 
@@ -183,12 +184,12 @@ final class FileWatchingX509ExtendedKeyManager extends X509ExtendedKeyManager {
             this.notAfter = notAfter;
 
             X509Certificate leaf = certificates.get(0);
-            this.logger.info(String.format("%s KeyManager for %s and %s: serial %s, subject %s, certificate chain expires at %s",
+            this.logger.info(() -> String.format("%s KeyManager for %s and %s: serial %s, subject %s, certificate chain expires at %s",
                 initialized ? "Initialized" : "Updated", this.privateKey, this.certificates,
                 leaf.getSerialNumber().toString(16), leaf.getSubjectX500Principal().getName(), notAfter));
 
             if (notAfter.isBefore(Instant.now())) {
-                this.logger.warning(String.format("Certificate chain %s expired at %s, TLS handshakes using it will fail", this.certificates, notAfter));
+                this.logger.warning(() -> String.format("Certificate chain %s expired at %s, TLS handshakes using it will fail", this.certificates, notAfter));
             }
         }
     }
