@@ -54,7 +54,7 @@
     <properties>
         <!-- The development version, the only place it is set. Release and snapshot builds override it with -Drevision. -->
         <revision>1.21.0-SNAPSHOT</revision>
-        <bouncycastle.version>1.80</bouncycastle.version>
+        <bouncycastle.version>1.86</bouncycastle.version>
         <junit.version>4.13.2</junit.version>
         <mockito.version>4.11.0</mockito.version>
         <slf4j.version>1.7.36</slf4j.version>
