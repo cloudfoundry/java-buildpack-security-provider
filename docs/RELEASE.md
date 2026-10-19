@@ -20,6 +20,8 @@ Earlier releases of this project used a `X.Y.Z.RELEASE`/`X.Y.Z.BUILD-SNAPSHOT` s
 
 ## Making a release
 
+Before releasing, merge or close open Dependabot pull requests and check the updates Dependabot skips; see [Dependency updates](#dependency-updates).
+
 1. GitHub -> **Releases** -> **Draft a new release**.
 2. **Choose a tag**: type a new tag `vX.Y.Z` (e.g. `v1.21.0`) and select **Create new tag on publish**, with target `main`.
 3. **Generate release notes**, edit as needed.
@@ -43,6 +45,26 @@ Nothing is attached. Fix the cause, then either:
 Nothing has to be merged: `main` keeps building as `-SNAPSHOT`. When convenient, raise the `revision` property in `pom.xml` to the next development version (e.g. `1.21.1-SNAPSHOT`) in a normal pull request, so snapshot builds no longer look older than the release; releases do not depend on it.
 
 Automating that bump would need the workflow to push to the protected `main`. It needs a repository admin to allow it, either by letting Actions open pull requests (Settings -> Actions -> General -> *Allow GitHub Actions to create and approve pull requests*) or by giving a GitHub App or deploy key a bypass on the branch protection.
+
+## Dependency updates
+
+Dependabot (`.github/dependabot.yml`) opens weekly pull requests for the Maven dependencies and plugins and for the GitHub Actions used by the workflows. Bouncy Castle, Maven plugin and GitHub Actions updates each come as one grouped pull request. The **Dependency Review** workflow fails a pull request that adds a dependency with a known high or critical vulnerability.
+
+The library and its tests target Java 8, so `dependabot.yml` ignores updates that would drop it:
+
+| Ignored | Why | Remove when |
+| ------- | --- | ----------- |
+| Major versions of all dependencies and plugins | Majors often drop Java 8, e.g. Mockito 5 needs Java 11 | The Java baseline is raised |
+| Logback 1.3 and later | 1.3 needs SLF4J 2, 1.4 and later need Java 11 | The Java baseline is raised to 11 or later, together with SLF4J 2 |
+
+Dependabot does not report ignored versions. To list every available update, majors included and pre-releases left out:
+
+```shell
+$ ./mvnw versions:display-dependency-updates versions:display-plugin-updates \
+    -Dmaven.version.ignore='.*-(alpha|beta|M|RC)[0-9]*'
+```
+
+When the Java baseline or a dependency line changes, update the ignore rules in `dependabot.yml` and this table together.
 
 ## Rebuilding a release locally
 

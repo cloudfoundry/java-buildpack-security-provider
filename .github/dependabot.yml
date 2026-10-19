@@ -1,0 +1,27 @@
+# Keep the ignore rules in sync with docs/RELEASE.md#dependency-updates.
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      bouncycastle:
+        patterns: [ "org.bouncycastle:*" ]
+      maven-plugins:
+        patterns: [ "org.apache.maven.plugins:*", "org.codehaus.mojo:*" ]
+    ignore:
+      # The library and its tests target Java 8; major versions often drop it.
+      - dependency-name: "*"
+        update-types: [ "version-update:semver-major" ]
+      # logback 1.3 needs slf4j 2, 1.4+ needs Java 11.
+      - dependency-name: "ch.qos.logback:*"
+        versions: [ ">= 1.3" ]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: [ "*" ]
