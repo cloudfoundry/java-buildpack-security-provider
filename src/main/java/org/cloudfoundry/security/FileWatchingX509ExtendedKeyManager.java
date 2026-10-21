@@ -66,8 +66,11 @@ final class FileWatchingX509ExtendedKeyManager extends X509ExtendedKeyManager {
         this.keyManagerFactory = keyManagerFactory;
 
         // Only the certificate file is watched: the Diego executor renames the new private key into place
-        // before the new certificate, so a certificate change means both files are new.
-        // Watching the key file as well caused #8.
+        // before the new certificate, so a certificate change means both files are new. See
+        // https://github.com/cloudfoundry/executor/blob/208a08c51850167d93e1040cfd8538fc1925c882/depot/containerstore/instance_identity_handler.go#L94-L102
+        // If that order ever changes, the update reads the old key with the new certificate and the mismatch check
+        // below keeps the current pair. Watching the key file as well caused
+        // https://github.com/cloudfoundry/java-buildpack-security-provider/issues/8
         new FileWatcher(this.certificates, this::update).watch();
         update();
     }
@@ -171,11 +174,20 @@ final class FileWatchingX509ExtendedKeyManager extends X509ExtendedKeyManager {
 
             // No retry: the Diego executor never writes a mismatched pair, and the next certificate change
             // triggers a new update. Until then the current pair, still valid, beats one that cannot authenticate.
-            if (this.keyManager.get() != null && !matches(privateKey, certificates)) {
-                Instant currentNotAfter = this.notAfter;
-                this.logger.warning(() -> String.format("Private key %s does not match certificate %s, keeping current KeyManager (certificate chain expires at %s)",
-                    this.privateKey, this.certificates, currentNotAfter));
-                return;
+            // A single delayed retry would also cover a certificate renamed before its key, but Diego renames the
+            // key first; add one only if real-world cases show the need.
+            // On the first load there is no current pair, so the mismatched one is installed, with a warning.
+            if (!matches(privateKey, certificates)) {
+                if (this.keyManager.get() != null) {
+                    Instant currentNotAfter = this.notAfter;
+                    this.logger.warning(() -> String.format("Private key %s does not match certificate %s, keeping current KeyManager (certificate chain expires at %s). " +
+                        "The private key may not have been replaced before the certificate",
+                        this.privateKey, this.certificates, currentNotAfter));
+                    return;
+                }
+
+                this.logger.warning(() -> String.format("Private key %s does not match certificate %s, no current KeyManager to keep, " +
+                    "TLS handshakes using it will fail", this.privateKey, this.certificates));
             }
 
             X509ExtendedKeyManager keyManager = getKeyManager(getKeyStore(privateKey, certificates));
@@ -194,7 +206,8 @@ final class FileWatchingX509ExtendedKeyManager extends X509ExtendedKeyManager {
         }
     }
 
-    // Instant prints as ISO-8601 in UTC, independent of the default time zone.
+    // Instant prints as ISO-8601 in UTC, independent of the default time zone. Never called with an empty list:
+    // on the first load the KeyStore rejects a key without certificates, on reloads matches() does.
     static Instant notAfter(List<X509Certificate> certificates) {
         Instant notAfter = Instant.MAX;
         for (X509Certificate certificate : certificates) {
