@@ -63,9 +63,9 @@ abstract class CloudFoundryContainerKeyManagerFactory extends KeyManagerFactoryS
         this.privateKey = privateKey;
         this.systemKeyManagerFactory = getKeyManagerFactory();
 
-        this.logger.fine(String.format("Algorithm: %s", algorithm));
-        this.logger.fine(String.format("Certificates: %s", certificates));
-        this.logger.fine(String.format("Private Key: %s", privateKey));
+        this.logger.fine(() -> String.format("Algorithm: %s", algorithm));
+        this.logger.fine(() -> String.format("Certificates: %s", certificates));
+        this.logger.fine(() -> String.format("Private Key: %s", privateKey));
     }
 
     @Override
@@ -105,7 +105,7 @@ abstract class CloudFoundryContainerKeyManagerFactory extends KeyManagerFactoryS
     private FileWatchingX509ExtendedKeyManager getContainerKeyManager() {
         synchronized (MONITOR) {
             if (CACHED_CONTAINER_KEY_MANAGER == null && this.certificates != null && Files.exists(this.certificates) && this.privateKey != null && Files.exists(this.privateKey)) {
-                this.logger.info(String.format("Adding Key Manager for %s and %s", this.privateKey, this.certificates));
+                this.logger.info(() -> String.format("Adding Key Manager for %s and %s", this.privateKey, this.certificates));
                 CACHED_CONTAINER_KEY_MANAGER = new FileWatchingX509ExtendedKeyManager(this.certificates, this.privateKey, getKeyManagerFactory());
             }
 
@@ -126,7 +126,7 @@ abstract class CloudFoundryContainerKeyManagerFactory extends KeyManagerFactoryS
             if (this.cachedSystemKeyManager == null) {
                 for (KeyManager candidate : this.systemKeyManagerFactory.getKeyManagers()) {
                     if (candidate instanceof X509ExtendedKeyManager) {
-                        this.logger.info("Adding System Key Manager");
+                        this.logger.fine("Adding System Key Manager");
                         this.cachedSystemKeyManager = (X509ExtendedKeyManager) candidate;
                         break;
                     }

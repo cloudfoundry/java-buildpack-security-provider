@@ -51,9 +51,12 @@ public final class FileWatchingX509ExtendedTrustManagerTest extends AbstractLogg
         assertThat(trustManager.getAcceptedIssuers()).hasSize(48);
 
         Thread.sleep(5_000);
-        Files.copy(Paths.get("src/test/resources/server-certificates-173.pem"), watchedCertificates, StandardCopyOption.REPLACE_EXISTING);
+        // Replace atomically, as a rename, so no update sees a half-written file.
+        Path replacement = Files.createTempFile(watchedCertificates.getParent(), "certificates-", ".tmp");
+        Files.copy(Paths.get("src/test/resources/server-certificates-173.pem"), replacement, StandardCopyOption.REPLACE_EXISTING);
+        Files.move(replacement, watchedCertificates, StandardCopyOption.ATOMIC_MOVE);
 
-        long timeout = System.currentTimeMillis() + 300_000;
+        long timeout = System.currentTimeMillis() + 30_000;
         for (; ; ) {
             if (System.currentTimeMillis() > timeout) {
                 fail("Failed to update within timeout");

@@ -62,7 +62,7 @@ final class FileWatcher implements Runnable, Thread.UncaughtExceptionHandler, Th
 
     @Override
     public void run() {
-        this.logger.info(String.format("Start watching %s", this.source));
+        this.logger.info(() -> String.format("Start watching %s", this.source));
 
         WatchService watchService;
         WatchKey expected;
@@ -81,7 +81,7 @@ final class FileWatcher implements Runnable, Thread.UncaughtExceptionHandler, Th
                 WatchKey actual = watchService.take();
 
                 if (!actual.equals(expected)) {
-                    this.logger.warning(String.format("Unknown watch key: %s", actual));
+                    this.logger.warning(() -> String.format("Unknown watch key: %s", actual));
                     continue;
                 }
 
@@ -89,14 +89,14 @@ final class FileWatcher implements Runnable, Thread.UncaughtExceptionHandler, Th
                     Path changed = (Path) watchEvent.context();
 
                     if (!this.source.getFileName().equals(changed)) {
-                        this.logger.fine(String.format("Discarding unimportant file change: %s", changed));
+                        this.logger.fine(() -> String.format("Discarding unimportant file change: %s", changed));
                         continue;
                     }
                     this.callback.run();
                 }
 
                 if (!actual.reset()) {
-                    this.logger.warning(String.format("Watch key is no longer valid: %s", actual));
+                    this.logger.warning(() -> String.format("Watch key is no longer valid: %s", actual));
                     break;
                 }
             } catch (InterruptedException e) {
@@ -106,7 +106,7 @@ final class FileWatcher implements Runnable, Thread.UncaughtExceptionHandler, Th
             }
         }
 
-        this.logger.info(String.format("Stop watching %s", this.source));
+        this.logger.info(() -> String.format("Stop watching %s", this.source));
     }
 
     @Override

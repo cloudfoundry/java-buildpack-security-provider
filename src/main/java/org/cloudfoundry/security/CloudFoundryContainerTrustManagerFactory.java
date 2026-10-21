@@ -59,8 +59,8 @@ abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFact
         this.certificates = certificates;
         this.systemTrustManagerFactory = getTrustManagerFactory();
 
-        this.logger.fine(String.format("Algorithm: %s", algorithm));
-        this.logger.fine(String.format("Certificates: %s", certificates));
+        this.logger.fine(() -> String.format("Algorithm: %s", algorithm));
+        this.logger.fine(() -> String.format("Certificates: %s", certificates));
     }
 
     @Override
@@ -100,7 +100,7 @@ abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFact
     private FileWatchingX509ExtendedTrustManager getContainerTrustManager() {
         synchronized (MONITOR) {
             if (CACHED_CONTAINER_TRUST_MANAGER == null && this.certificates != null && Files.exists(this.certificates)) {
-                this.logger.info(String.format("Adding TrustManager for %s", this.certificates));
+                this.logger.info(() -> String.format("Adding TrustManager for %s", this.certificates));
                 CACHED_CONTAINER_TRUST_MANAGER = new FileWatchingX509ExtendedTrustManager(this.certificates, getTrustManagerFactory());
             }
 
@@ -113,7 +113,7 @@ abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFact
             if (this.cachedSystemTrustManager == null) {
                 for (TrustManager candidate : this.systemTrustManagerFactory.getTrustManagers()) {
                     if (candidate instanceof X509ExtendedTrustManager) {
-                        this.logger.info("Adding System Trust Manager");
+                        this.logger.fine("Adding System Trust Manager");
                         this.cachedSystemTrustManager = (X509ExtendedTrustManager) candidate;
                         break;
                     }

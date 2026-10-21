@@ -26,6 +26,9 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.cert.CertificateException;
+import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.LogRecord;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -49,6 +52,17 @@ public final class CloudFoundryContainerTrustManagerFactoryTest extends Abstract
         TrustManager trustManager = factory.engineGetTrustManagers()[0];
         assertThat(trustManager).isInstanceOf(DelegatingX509ExtendedTrustManager.class);
         assertThat(((DelegatingX509ExtendedTrustManager) trustManager).size()).isEqualTo(1);
+    }
+
+    @Test
+    public void logsSystemTrustManagerAtFine() throws Exception {
+        List<LogRecord> records = LogRecorder.record(CloudFoundryContainerTrustManagerFactory.PKIXFactory.class, () -> {
+            CloudFoundryContainerTrustManagerFactory.PKIXFactory factory = new CloudFoundryContainerTrustManagerFactory.PKIXFactory(null);
+            factory.engineInit(getKeyStore());
+            factory.engineGetTrustManagers();
+        });
+
+        assertThat(records).filteredOn(r -> "Adding System Trust Manager".equals(r.getMessage())).extracting(LogRecord::getLevel).containsExactly(Level.FINE);
     }
 
     private KeyStore getKeyStore() throws KeyStoreException, CertificateException, NoSuchAlgorithmException, IOException {
