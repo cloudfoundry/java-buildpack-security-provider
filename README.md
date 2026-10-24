@@ -10,21 +10,25 @@ The `java-buildpack-security-provider` is a utility that watches for changes to 
 ## Certificate rotation
 The KeyManager is reloaded when the instance identity certificate (`CF_INSTANCE_CERT`) changes. The Diego executor [writes the new private key (`CF_INSTANCE_KEY`) before the new certificate](https://github.com/cloudfoundry/executor/blob/208a08c51850167d93e1040cfd8538fc1925c882/depot/containerstore/instance_identity_handler.go#L94-L102), so only the certificate file is watched. Since 1.22.0, each load logs the certificate serial, subject and when the certificate chain expires (earliest expiry in the chain, in UTC).
 
-Since 1.22.0, the private key is checked against the certificate on every load. Only RSA keys, the type the Diego executor issues, are checked; other key types are accepted with an informational log message. On a reload with a mismatch or an empty certificate file, the current KeyManager is kept and a warning is logged:
+Since 1.22.0, the private key is checked against the certificate on every load. Only RSA keys, the type the Diego executor issues, are checked; other key types are accepted with an informational log message. On a reload with a mismatch or an empty certificate file, the current KeyManager is kept and an error is logged (JUL level `SEVERE`, shown as `ERROR` through SLF4J or Spring Boot):
 
 ```
 Private key ... does not match certificate ..., keeping current KeyManager (certificate chain expires at 2026-10-15T09:30:00Z). The private key may not have been replaced before the certificate
 ```
 
-On the first load there is no current KeyManager to keep: a mismatched pair is installed with a warning, and an empty certificate file fails to load, as before.
+On the first load there is no current KeyManager to keep: a mismatched pair or an empty certificate file is not installed and an error is logged. No client certificate is presented until a certificate change brings a matching pair; other TLS connections keep working.
 
-A kept KeyManager is not replaced until the next certificate change. With Diego defaults (24 hour validity, rotation 30 minutes before expiry) the kept certificate expires about 30 minutes later, after which TLS handshakes using it fail. A loaded certificate chain that has already expired is installed as before, with a warning:
+```
+Private key ... does not match certificate ..., no KeyManager installed: no client certificate is presented until a matching pair is loaded
+```
+
+A kept KeyManager is not replaced until the next certificate change. With Diego defaults (24 hour validity, rotation 30 minutes before expiry) the kept certificate expires about 30 minutes later, after which TLS handshakes using it fail. A loaded certificate chain that has already expired is installed as before, with an error:
 
 ```
 Certificate chain ... expired at 2026-10-15T09:30:00Z, TLS handshakes using it will fail
 ```
 
-Alert on these warnings and restart the affected instance to get a new key pair:
+Alert on these errors and restart the affected instance to get a new key pair:
 
 ```shell
 $ cf restart-app-instance APP_NAME INDEX

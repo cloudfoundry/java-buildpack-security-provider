@@ -77,42 +77,50 @@ final class FileWatchingX509ExtendedKeyManager extends X509ExtendedKeyManager {
 
     @Override
     public String chooseClientAlias(String[] strings, Principal[] principals, Socket socket) {
-        return this.keyManager.get().chooseClientAlias(strings, principals, socket);
+        X509ExtendedKeyManager keyManager = this.keyManager.get();
+        return keyManager != null ? keyManager.chooseClientAlias(strings, principals, socket) : null;
     }
 
     @Override
     public String chooseEngineClientAlias(String[] strings, Principal[] principals, SSLEngine sslEngine) {
-        return this.keyManager.get().chooseEngineClientAlias(strings, principals, sslEngine);
+        X509ExtendedKeyManager keyManager = this.keyManager.get();
+        return keyManager != null ? keyManager.chooseEngineClientAlias(strings, principals, sslEngine) : null;
     }
 
     @Override
     public String chooseEngineServerAlias(String s, Principal[] principals, SSLEngine sslEngine) {
-        return this.keyManager.get().chooseEngineServerAlias(s, principals, sslEngine);
+        X509ExtendedKeyManager keyManager = this.keyManager.get();
+        return keyManager != null ? keyManager.chooseEngineServerAlias(s, principals, sslEngine) : null;
     }
 
     @Override
     public String chooseServerAlias(String s, Principal[] principals, Socket socket) {
-        return this.keyManager.get().chooseServerAlias(s, principals, socket);
+        X509ExtendedKeyManager keyManager = this.keyManager.get();
+        return keyManager != null ? keyManager.chooseServerAlias(s, principals, socket) : null;
     }
 
     @Override
     public X509Certificate[] getCertificateChain(String s) {
-        return this.keyManager.get().getCertificateChain(s);
+        X509ExtendedKeyManager keyManager = this.keyManager.get();
+        return keyManager != null ? keyManager.getCertificateChain(s) : null;
     }
 
     @Override
     public String[] getClientAliases(String s, Principal[] principals) {
-        return this.keyManager.get().getClientAliases(s, principals);
+        X509ExtendedKeyManager keyManager = this.keyManager.get();
+        return keyManager != null ? keyManager.getClientAliases(s, principals) : null;
     }
 
     @Override
     public PrivateKey getPrivateKey(String s) {
-        return this.keyManager.get().getPrivateKey(s);
+        X509ExtendedKeyManager keyManager = this.keyManager.get();
+        return keyManager != null ? keyManager.getPrivateKey(s) : null;
     }
 
     @Override
     public String[] getServerAliases(String s, Principal[] principals) {
-        return this.keyManager.get().getServerAliases(s, principals);
+        X509ExtendedKeyManager keyManager = this.keyManager.get();
+        return keyManager != null ? keyManager.getServerAliases(s, principals) : null;
     }
 
     private X509ExtendedKeyManager getKeyManager(KeyStore keyStore) {
@@ -176,18 +184,19 @@ final class FileWatchingX509ExtendedKeyManager extends X509ExtendedKeyManager {
             // triggers a new update. Until then the current pair, still valid, beats one that cannot authenticate.
             // A single delayed retry would also cover a certificate renamed before its key, but Diego renames the
             // key first; add one only if real-world cases show the need.
-            // On the first load there is no current pair, so the mismatched one is installed, with a warning.
+            // On the first load there is no current pair: none is installed, so no client certificate is presented
+            // and other TLS connections keep working, until a certificate change brings a matching pair.
             if (!matches(privateKey, certificates)) {
                 if (this.keyManager.get() != null) {
                     Instant currentNotAfter = this.notAfter;
-                    this.logger.warning(() -> String.format("Private key %s does not match certificate %s, keeping current KeyManager (certificate chain expires at %s). " +
+                    this.logger.severe(() -> String.format("Private key %s does not match certificate %s, keeping current KeyManager (certificate chain expires at %s). " +
                         "The private key may not have been replaced before the certificate",
                         this.privateKey, this.certificates, currentNotAfter));
-                    return;
+                } else {
+                    this.logger.severe(() -> String.format("Private key %s does not match certificate %s, no KeyManager installed: " +
+                        "no client certificate is presented until a matching pair is loaded", this.privateKey, this.certificates));
                 }
-
-                this.logger.warning(() -> String.format("Private key %s does not match certificate %s, no current KeyManager to keep, " +
-                    "TLS handshakes using it will fail", this.privateKey, this.certificates));
+                return;
             }
 
             X509ExtendedKeyManager keyManager = getKeyManager(getKeyStore(privateKey, certificates));
@@ -201,13 +210,13 @@ final class FileWatchingX509ExtendedKeyManager extends X509ExtendedKeyManager {
                 leaf.getSerialNumber().toString(16), leaf.getSubjectX500Principal().getName(), notAfter));
 
             if (notAfter.isBefore(Instant.now())) {
-                this.logger.warning(() -> String.format("Certificate chain %s expired at %s, TLS handshakes using it will fail", this.certificates, notAfter));
+                this.logger.severe(() -> String.format("Certificate chain %s expired at %s, TLS handshakes using it will fail", this.certificates, notAfter));
             }
         }
     }
 
     // Instant prints as ISO-8601 in UTC, independent of the default time zone. Never called with an empty list:
-    // on the first load the KeyStore rejects a key without certificates, on reloads matches() does.
+    // matches() rejects it first.
     static Instant notAfter(List<X509Certificate> certificates) {
         Instant notAfter = Instant.MAX;
         for (X509Certificate certificate : certificates) {

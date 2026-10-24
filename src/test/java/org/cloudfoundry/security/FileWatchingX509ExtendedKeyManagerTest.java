@@ -28,6 +28,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -35,7 +36,6 @@ import java.util.logging.Level;
 import java.util.logging.LogRecord;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.fail;
 
 // The client-certificates-*.pem fixtures are Diego-issued and expired in 2017 (CA in 2018). That is fine: loading and
@@ -88,7 +88,7 @@ public final class FileWatchingX509ExtendedKeyManagerTest extends AbstractLoggin
     }
 
     @Test
-    public void initializedWithWarningWhenPrivateKeyDoesNotMatchCertificate() throws Exception {
+    public void notInitializedWhenPrivateKeyDoesNotMatchCertificate() throws Exception {
         Path watchedCertificates = getWatchedCertificatesFile();
         Files.copy(Paths.get("src/test/resources/client-certificates-2.pem"), watchedCertificates);
 
@@ -99,21 +99,40 @@ public final class FileWatchingX509ExtendedKeyManagerTest extends AbstractLoggin
         List<LogRecord> records = LogRecorder.record(FileWatchingX509ExtendedKeyManager.class, () ->
             keyManager.set(new FileWatchingX509ExtendedKeyManager(watchedCertificates, watchedPrivateKey, KeyManagerFactory.getInstance("SunX509"))));
 
-        assertThat(keyManager.get().getClientAliases("RSA", null)).hasSize(1);
-        assertThat(records).filteredOn(r -> r.getLevel() == Level.WARNING && r.getMessage().startsWith("Private key " + watchedPrivateKey + " does not match certificate"))
-            .hasSize(1);
+        assertNotInitialized(keyManager.get());
+        assertThat(severe(records, "Private key " + watchedPrivateKey + " does not match certificate")).hasSize(1);
     }
 
     @Test
-    public void initializationFailsWhenCertificatesAreEmpty() throws IOException {
+    public void notInitializedWhenCertificatesAreEmpty() throws Exception {
         Path watchedCertificates = getWatchedCertificatesFile();
         Files.write(watchedCertificates, new byte[0]);
 
         Path watchedPrivateKey = getWatchedPrivateKeyFile();
         Files.copy(Paths.get("src/test/resources/client-private-key-1.pem"), watchedPrivateKey);
 
-        assertThatThrownBy(() -> new FileWatchingX509ExtendedKeyManager(watchedCertificates, watchedPrivateKey, KeyManagerFactory.getInstance("SunX509")))
-            .isInstanceOf(IllegalArgumentException.class);
+        AtomicReference<FileWatchingX509ExtendedKeyManager> keyManager = new AtomicReference<>();
+        List<LogRecord> records = LogRecorder.record(FileWatchingX509ExtendedKeyManager.class, () ->
+            keyManager.set(new FileWatchingX509ExtendedKeyManager(watchedCertificates, watchedPrivateKey, KeyManagerFactory.getInstance("SunX509"))));
+
+        assertNotInitialized(keyManager.get());
+        assertThat(severe(records, "Private key " + watchedPrivateKey + " does not match certificate")).hasSize(1);
+    }
+
+    @Test
+    public void initializedByUpdateAfterInvalidFirstLoad() throws IOException, CertificateException, NoSuchAlgorithmException {
+        Path watchedCertificates = getWatchedCertificatesFile();
+        Files.copy(Paths.get("src/test/resources/client-certificates-2.pem"), watchedCertificates);
+
+        Path watchedPrivateKey = getWatchedPrivateKeyFile();
+        Files.copy(Paths.get("src/test/resources/client-private-key-1.pem"), watchedPrivateKey);
+
+        FileWatchingX509ExtendedKeyManager keyManager = new FileWatchingX509ExtendedKeyManager(watchedCertificates, watchedPrivateKey, KeyManagerFactory.getInstance("SunX509"));
+
+        Files.copy(Paths.get("src/test/resources/client-private-key-2.pem"), watchedPrivateKey, StandardCopyOption.REPLACE_EXISTING);
+        keyManager.update();
+
+        assertThat(getLeafCertificate(keyManager)).isEqualTo(X509CertificateFactory.generate(Paths.get("src/test/resources/client-certificates-2.pem")).get(0));
     }
 
     @Test
@@ -134,7 +153,7 @@ public final class FileWatchingX509ExtendedKeyManagerTest extends AbstractLoggin
     }
 
     @Test
-    public void keepsCurrentWhenPrivateKeyDoesNotMatchCertificate() throws IOException, CertificateException, NoSuchAlgorithmException {
+    public void keepsCurrentWhenPrivateKeyDoesNotMatchCertificate() throws Exception {
         Path watchedCertificates = getWatchedCertificatesFile();
         Files.copy(Paths.get("src/test/resources/client-certificates-1.pem"), watchedCertificates);
 
@@ -144,9 +163,11 @@ public final class FileWatchingX509ExtendedKeyManagerTest extends AbstractLoggin
         FileWatchingX509ExtendedKeyManager keyManager = new FileWatchingX509ExtendedKeyManager(watchedCertificates, watchedPrivateKey, KeyManagerFactory.getInstance("SunX509"));
 
         Files.copy(Paths.get("src/test/resources/client-certificates-2.pem"), watchedCertificates, StandardCopyOption.REPLACE_EXISTING);
-        keyManager.update();
+        List<LogRecord> records = LogRecorder.record(FileWatchingX509ExtendedKeyManager.class, keyManager::update);
 
         assertThat(getLeafCertificate(keyManager)).isEqualTo(X509CertificateFactory.generate(Paths.get("src/test/resources/client-certificates-1.pem")).get(0));
+        // The watcher thread may also react to the change, so the error can be logged more than once
+        assertThat(severe(records, "Private key " + watchedPrivateKey + " does not match certificate")).isNotEmpty();
     }
 
     @Test
@@ -171,6 +192,23 @@ public final class FileWatchingX509ExtendedKeyManagerTest extends AbstractLoggin
         Collections.reverse(certificates);
 
         assertThat(FileWatchingX509ExtendedKeyManager.notAfter(certificates)).isEqualTo(Instant.parse("2017-05-19T17:58:20Z"));
+    }
+
+    private static void assertNotInitialized(FileWatchingX509ExtendedKeyManager keyManager) {
+        assertThat(keyManager.getClientAliases("RSA", null)).isNull();
+        assertThat(keyManager.chooseClientAlias(new String[]{"RSA"}, null, null)).isNull();
+        assertThat(keyManager.getCertificateChain("any")).isNull();
+        assertThat(keyManager.getPrivateKey("any")).isNull();
+    }
+
+    private static List<LogRecord> severe(List<LogRecord> records, String messagePrefix) {
+        List<LogRecord> severe = new ArrayList<>();
+        for (LogRecord record : records) {
+            if (record.getLevel() == Level.SEVERE && record.getMessage().startsWith(messagePrefix)) {
+                severe.add(record);
+            }
+        }
+        return severe;
     }
 
     // The file watcher can install a new KeyManager between the two calls; aliases change on every load, so retry.
