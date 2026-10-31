@@ -55,14 +55,25 @@ public final class CloudFoundryContainerTrustManagerFactoryTest extends Abstract
     }
 
     @Test
-    public void logsSystemTrustManagerAtFine() throws Exception {
+    public void logsSystemTrustManagerWithCertificateCountAtInfo() throws Exception {
         List<LogRecord> records = LogRecorder.record(CloudFoundryContainerTrustManagerFactory.PKIXFactory.class, () -> {
             CloudFoundryContainerTrustManagerFactory.PKIXFactory factory = new CloudFoundryContainerTrustManagerFactory.PKIXFactory(null);
             factory.engineInit(getKeyStore());
             factory.engineGetTrustManagers();
         });
 
-        assertThat(records).filteredOn(r -> "Adding System Trust Manager".equals(r.getMessage())).extracting(LogRecord::getLevel).containsExactly(Level.FINE);
+        assertThat(records).filteredOn(r -> r.getMessage().matches("Adding System TrustManager \\(PKIX\\) with \\d+ trusted certificates")).extracting(LogRecord::getLevel).containsExactly(Level.INFO);
+    }
+
+    @Test
+    public void logsSuppliedKeyStoreAsSystemTrustStoreSource() throws Exception {
+        List<LogRecord> records = LogRecorder.record(CloudFoundryContainerTrustManagerFactory.PKIXFactory.class, () -> {
+            CloudFoundryContainerTrustManagerFactory.PKIXFactory factory = new CloudFoundryContainerTrustManagerFactory.PKIXFactory(null);
+            factory.engineInit(getKeyStore());
+            factory.engineGetTrustManagers();
+        });
+
+        assertThat(records).extracting(LogRecord::getMessage).contains("System trust store: KeyStore passed to init");
     }
 
     private KeyStore getKeyStore() throws KeyStoreException, CertificateException, NoSuchAlgorithmException, IOException {
