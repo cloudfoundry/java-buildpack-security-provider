@@ -54,6 +54,8 @@ abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFact
 
     private X509ExtendedTrustManager cachedSystemTrustManager;
 
+    private String systemTrustSource;
+
     private CloudFoundryContainerTrustManagerFactory(String algorithm, Path certificates) {
         this.algorithm = algorithm;
         this.certificates = certificates;
@@ -83,13 +85,13 @@ abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFact
     @Override
     protected final void engineInit(ManagerFactoryParameters managerFactoryParameters) throws InvalidAlgorithmParameterException {
         this.systemTrustManagerFactory.init(managerFactoryParameters);
-        invalidateSystemTrustManager();
+        invalidateSystemTrustManager("ManagerFactoryParameters passed to init");
     }
 
     @Override
     protected final void engineInit(KeyStore keyStore) throws KeyStoreException {
         this.systemTrustManagerFactory.init(keyStore);
-        invalidateSystemTrustManager();
+        invalidateSystemTrustManager(keyStore != null ? "KeyStore passed to init" : null);
     }
 
     private static Path getCertificatesLocation() {
@@ -113,8 +115,13 @@ abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFact
             if (this.cachedSystemTrustManager == null) {
                 for (TrustManager candidate : this.systemTrustManagerFactory.getTrustManagers()) {
                     if (candidate instanceof X509ExtendedTrustManager) {
-                        this.logger.fine("Adding System Trust Manager");
                         this.cachedSystemTrustManager = (X509ExtendedTrustManager) candidate;
+                        this.logger.info(() -> String.format("Adding System TrustManager (%s) with %d trusted certificates",
+                                this.algorithm, this.cachedSystemTrustManager.getAcceptedIssuers().length));
+                        this.logger.info(() -> String.format("System trust store: %s", this.systemTrustSource != null
+                                ? this.systemTrustSource : "default JVM configuration, " + TrustStoreDiagnostics.systemTrustStore()));
+                        this.logger.info(() -> String.format("Revocation: %s", TrustStoreDiagnostics.revocation()));
+                        this.logger.info(() -> String.format("Blocked: %s", TrustStoreDiagnostics.blocked()));
                         break;
                     }
                 }
@@ -132,9 +139,10 @@ abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFact
         }
     }
 
-    private void invalidateSystemTrustManager() {
+    private void invalidateSystemTrustManager(String source) {
         synchronized (MONITOR) {
             this.cachedSystemTrustManager = null;
+            this.systemTrustSource = source;
         }
     }
 
