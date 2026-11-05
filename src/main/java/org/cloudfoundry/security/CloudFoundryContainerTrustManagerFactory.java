@@ -32,6 +32,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFactorySpi {
@@ -44,6 +45,8 @@ abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFact
 
     private static FileWatchingX509ExtendedTrustManager CACHED_CONTAINER_TRUST_MANAGER;
 
+    private static boolean SYSTEM_SUMMARY_LOGGED;
+
     private final Logger logger = Logger.getLogger(this.getClass().getName());
 
     private final String algorithm;
@@ -53,6 +56,8 @@ abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFact
     private final TrustManagerFactory systemTrustManagerFactory;
 
     private X509ExtendedTrustManager cachedSystemTrustManager;
+
+    private String systemTrustSource;
 
     private CloudFoundryContainerTrustManagerFactory(String algorithm, Path certificates) {
         this.algorithm = algorithm;
@@ -83,13 +88,15 @@ abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFact
     @Override
     protected final void engineInit(ManagerFactoryParameters managerFactoryParameters) throws InvalidAlgorithmParameterException {
         this.systemTrustManagerFactory.init(managerFactoryParameters);
-        invalidateSystemTrustManager();
+        invalidateSystemTrustManager("ManagerFactoryParameters passed to init");
     }
 
     @Override
     protected final void engineInit(KeyStore keyStore) throws KeyStoreException {
         this.systemTrustManagerFactory.init(keyStore);
-        invalidateSystemTrustManager();
+        // init(null) reads the JVM trust store configuration now, so describe it now rather than when the managers are retrieved.
+        invalidateSystemTrustManager(keyStore != null ? "KeyStore passed to init"
+                : TrustStoreDiagnostics.systemTrustStore());
     }
 
     private static Path getCertificatesLocation() {
@@ -113,8 +120,8 @@ abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFact
             if (this.cachedSystemTrustManager == null) {
                 for (TrustManager candidate : this.systemTrustManagerFactory.getTrustManagers()) {
                     if (candidate instanceof X509ExtendedTrustManager) {
-                        this.logger.fine("Adding System Trust Manager");
                         this.cachedSystemTrustManager = (X509ExtendedTrustManager) candidate;
+                        logSystemSummary();
                         break;
                     }
                 }
@@ -122,6 +129,18 @@ abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFact
 
             return this.cachedSystemTrustManager;
         }
+    }
+
+    // Logged at INFO once per JVM; factories are created often (e.g. per connection), so later ones log at FINE (see #17).
+    private void logSystemSummary() {
+        Level level = SYSTEM_SUMMARY_LOGGED ? Level.FINE : Level.INFO;
+        SYSTEM_SUMMARY_LOGGED = true;
+
+        this.logger.log(level, TrustStoreDiagnostics.safe(() -> String.format("Adding System TrustManager (%s) with %d trusted certificates",
+                this.algorithm, this.cachedSystemTrustManager.getAcceptedIssuers().length)));
+        this.logger.log(level, TrustStoreDiagnostics.safe(() -> String.format("System trust store: %s", this.systemTrustSource != null
+                ? this.systemTrustSource : TrustStoreDiagnostics.systemTrustStore())));
+        this.logger.log(level, TrustStoreDiagnostics.safe(() -> String.format("Blocked: %s", TrustStoreDiagnostics.blocked())));
     }
 
     private TrustManagerFactory getTrustManagerFactory() {
@@ -132,9 +151,10 @@ abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFact
         }
     }
 
-    private void invalidateSystemTrustManager() {
+    private void invalidateSystemTrustManager(String source) {
         synchronized (MONITOR) {
             this.cachedSystemTrustManager = null;
+            this.systemTrustSource = source;
         }
     }
 

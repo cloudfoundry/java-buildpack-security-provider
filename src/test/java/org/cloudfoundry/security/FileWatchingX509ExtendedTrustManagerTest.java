@@ -25,6 +25,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.security.NoSuchAlgorithmException;
+import java.util.List;
+import java.util.logging.LogRecord;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
@@ -42,32 +44,36 @@ public final class FileWatchingX509ExtendedTrustManagerTest extends AbstractLogg
     }
 
     @Test
-    public void watchesWatchedFile() throws IOException, InterruptedException, NoSuchAlgorithmException {
+    public void watchesWatchedFile() throws Exception {
         Path watchedCertificates = getWatchedFile();
         Files.copy(Paths.get("src/test/resources/server-certificates-48.pem"), watchedCertificates);
+        String expectedMessage = String.format("Updated TrustManager for %s with 173 trusted certificates", watchedCertificates);
 
-        FileWatchingX509ExtendedTrustManager trustManager = new FileWatchingX509ExtendedTrustManager(watchedCertificates, TrustManagerFactory.getInstance("PKIX"));
+        List<LogRecord> records = LogRecorder.record(FileWatchingX509ExtendedTrustManager.class, (List<LogRecord> live) -> {
+            FileWatchingX509ExtendedTrustManager trustManager = new FileWatchingX509ExtendedTrustManager(watchedCertificates, TrustManagerFactory.getInstance("PKIX"));
 
-        assertThat(trustManager.getAcceptedIssuers()).hasSize(48);
+            assertThat(trustManager.getAcceptedIssuers()).hasSize(48);
 
-        Thread.sleep(5_000);
-        // Replace atomically, as a rename, so no update sees a half-written file.
-        Path replacement = Files.createTempFile(watchedCertificates.getParent(), "certificates-", ".tmp");
-        Files.copy(Paths.get("src/test/resources/server-certificates-173.pem"), replacement, StandardCopyOption.REPLACE_EXISTING);
-        Files.move(replacement, watchedCertificates, StandardCopyOption.ATOMIC_MOVE);
+            Thread.sleep(5_000);
+            // Replace atomically, as a rename, so no update sees a half-written file.
+            Path replacement = Files.createTempFile(watchedCertificates.getParent(), "certificates-", ".tmp");
+            Files.copy(Paths.get("src/test/resources/server-certificates-173.pem"), replacement, StandardCopyOption.REPLACE_EXISTING);
+            Files.move(replacement, watchedCertificates, StandardCopyOption.ATOMIC_MOVE);
 
-        long timeout = System.currentTimeMillis() + 30_000;
-        for (; ; ) {
-            if (System.currentTimeMillis() > timeout) {
-                fail("Failed to update within timeout");
+            // The summary is logged asynchronously, after the manager has been updated.
+            long timeout = System.currentTimeMillis() + 30_000;
+            while (live.stream().noneMatch(record -> expectedMessage.equals(record.getMessage()))) {
+                if (System.currentTimeMillis() > timeout) {
+                    fail("Failed to update within timeout");
+                }
+
+                Thread.sleep(1_000);
             }
 
-            if (trustManager.getAcceptedIssuers().length == 173) {
-                return;
-            }
+            assertThat(trustManager.getAcceptedIssuers()).hasSize(173);
+        });
 
-            Thread.sleep(1_000);
-        }
+        assertThat(records).extracting(LogRecord::getMessage).contains(expectedMessage);
     }
 
     private Path getWatchedFile() throws IOException {

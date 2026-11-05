@@ -26,6 +26,7 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.cert.CertificateException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
@@ -54,15 +55,102 @@ public final class CloudFoundryContainerTrustManagerFactoryTest extends Abstract
         assertThat(((DelegatingX509ExtendedTrustManager) trustManager).size()).isEqualTo(1);
     }
 
+    // Logging the summary at INFO for every factory init (e.g. per new connection) was the problem fixed in #17.
     @Test
-    public void logsSystemTrustManagerAtFine() throws Exception {
+    public void laterSystemTrustManagersLogSummaryAtFine() throws Exception {
+        recordSystemSummaryLevels();
+
+        assertThat(recordSystemSummaryLevels()).containsExactly(Level.FINE, Level.FINE, Level.FINE);
+    }
+
+    @Test
+    public void systemSummaryContainsCertificateCount() throws Exception {
+
+        assertThat(recordSystemSummary()).extracting(LogRecord::getMessage).anyMatch(m -> m.matches("Adding System TrustManager \\(PKIX\\) with \\d+ trusted certificates"));
+    }
+
+    @Test
+    public void logsSuppliedKeyStoreAsSystemTrustStoreSource() throws Exception {
         List<LogRecord> records = LogRecorder.record(CloudFoundryContainerTrustManagerFactory.PKIXFactory.class, () -> {
             CloudFoundryContainerTrustManagerFactory.PKIXFactory factory = new CloudFoundryContainerTrustManagerFactory.PKIXFactory(null);
             factory.engineInit(getKeyStore());
             factory.engineGetTrustManagers();
         });
 
-        assertThat(records).filteredOn(r -> "Adding System Trust Manager".equals(r.getMessage())).extracting(LogRecord::getLevel).containsExactly(Level.FINE);
+        assertThat(records).extracting(LogRecord::getMessage).contains("System trust store: KeyStore passed to init");
+    }
+
+    @Test
+    public void systemTrustStoreSourceIsCapturedAtInit() throws Exception {
+        String original = System.getProperty("javax.net.ssl.trustStore");
+        String cacerts = Paths.get(System.getProperty("java.home"), "lib", "security", "cacerts").toString();
+
+        List<LogRecord> records = LogRecorder.record(CloudFoundryContainerTrustManagerFactory.PKIXFactory.class, () -> {
+            CloudFoundryContainerTrustManagerFactory.PKIXFactory factory = new CloudFoundryContainerTrustManagerFactory.PKIXFactory(null);
+            System.setProperty("javax.net.ssl.trustStore", cacerts);
+            try {
+                factory.engineInit((KeyStore) null);
+            } finally {
+                restoreProperty("javax.net.ssl.trustStore", original);
+            }
+            factory.engineGetTrustManagers();
+        });
+
+        assertThat(records).extracting(LogRecord::getMessage)
+                .contains("System trust store: default JVM configuration (javax.net.ssl.trustStore=" + cacerts + ", javax.net.ssl.trustStoreType=not set)");
+    }
+
+    @Test
+    public void summaryFailureDoesNotBreakInit() throws Exception {
+        String javaHome = System.getProperty("java.home");
+        System.setProperty("java.home", "bad\0path");
+        try {
+            List<LogRecord> records = LogRecorder.record(CloudFoundryContainerTrustManagerFactory.PKIXFactory.class, () -> {
+                CloudFoundryContainerTrustManagerFactory.PKIXFactory factory = new CloudFoundryContainerTrustManagerFactory.PKIXFactory(null);
+                factory.engineInit((KeyStore) null);
+                assertThat(factory.engineGetTrustManagers()).isNotEmpty();
+            });
+
+            assertThat(records).extracting(LogRecord::getMessage).contains("Blocked: unavailable (InvalidPathException)");
+        } finally {
+            System.setProperty("java.home", javaHome);
+        }
+    }
+
+    private List<Level> recordSystemSummaryLevels() throws Exception {
+        List<Level> levels = new ArrayList<>();
+        for (LogRecord record : recordSystemSummary()) {
+            levels.add(record.getLevel());
+        }
+
+        return levels;
+    }
+
+    private static void restoreProperty(String key, String value) {
+        if (value == null) {
+            System.clearProperty(key);
+        } else {
+            System.setProperty(key, value);
+        }
+    }
+
+    private List<LogRecord> recordSystemSummary() throws Exception {
+        List<LogRecord> records = LogRecorder.record(CloudFoundryContainerTrustManagerFactory.PKIXFactory.class, () -> {
+            CloudFoundryContainerTrustManagerFactory.PKIXFactory factory = new CloudFoundryContainerTrustManagerFactory.PKIXFactory(null);
+            factory.engineInit(getKeyStore());
+            factory.engineGetTrustManagers();
+        });
+
+        List<LogRecord> summary = new ArrayList<>();
+        for (LogRecord record : records) {
+            String message = record.getMessage();
+            if (message.startsWith("Adding System TrustManager") || message.startsWith("System trust store:")
+                    || message.startsWith("Blocked:")) {
+                summary.add(record);
+            }
+        }
+
+        return summary;
     }
 
     private KeyStore getKeyStore() throws KeyStoreException, CertificateException, NoSuchAlgorithmException, IOException {
