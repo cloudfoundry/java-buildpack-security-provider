@@ -138,8 +138,9 @@ abstract class CloudFoundryContainerTrustManagerFactory extends TrustManagerFact
 
         this.logger.log(level, TrustStoreDiagnostics.safe(() -> String.format("Adding System TrustManager (%s) with %d trusted certificates",
                 this.algorithm, this.cachedSystemTrustManager.getAcceptedIssuers().length)));
-        this.logger.log(level, TrustStoreDiagnostics.safe(() -> String.format("System trust store: %s", this.systemTrustSource != null
-                ? this.systemTrustSource : TrustStoreDiagnostics.systemTrustStore())));
+        if (this.systemTrustSource != null) {
+            this.logger.log(level, () -> String.format("System trust store: %s", this.systemTrustSource));
+        }
         this.logger.log(level, TrustStoreDiagnostics.safe(() -> String.format("Blocked: %s", TrustStoreDiagnostics.blocked())));
     }
 

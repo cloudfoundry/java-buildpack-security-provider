@@ -64,7 +64,7 @@ public class TrustStoreDiagnosticsTest {
         System.setProperty("javax.net.ssl.trustStoreType", "PKCS12");
 
         assertThat(TrustStoreDiagnostics.systemTrustStore())
-                .isEqualTo("default JVM configuration (javax.net.ssl.trustStore=/custom/store.p12, javax.net.ssl.trustStoreType=PKCS12)");
+                .isEqualTo("javax.net.ssl.trustStore=/custom/store.p12, javax.net.ssl.trustStoreType=PKCS12");
     }
 
     @Test
@@ -72,13 +72,20 @@ public class TrustStoreDiagnosticsTest {
         System.setProperty("javax.net.ssl.trustStore", "NONE");
 
         assertThat(TrustStoreDiagnostics.systemTrustStore())
-                .isEqualTo("default JVM configuration (javax.net.ssl.trustStore=NONE, javax.net.ssl.trustStoreType=not set)");
+                .isEqualTo("javax.net.ssl.trustStore=NONE, javax.net.ssl.trustStoreType=not set");
     }
 
     @Test
-    public void systemTrustStoreReportsUnsetProperty() {
+    public void systemTrustStoreReportsTypeEvenWhenStoreIsUnset() {
+        System.setProperty("javax.net.ssl.trustStoreType", "PKCS11");
+
         assertThat(TrustStoreDiagnostics.systemTrustStore())
-                .isEqualTo("default JVM configuration (javax.net.ssl.trustStore not set)");
+                .isEqualTo("javax.net.ssl.trustStore=not set, javax.net.ssl.trustStoreType=PKCS11");
+    }
+
+    @Test
+    public void systemTrustStoreIsNullWhenDefault() {
+        assertThat(TrustStoreDiagnostics.systemTrustStore()).isNull();
     }
 
     @Test

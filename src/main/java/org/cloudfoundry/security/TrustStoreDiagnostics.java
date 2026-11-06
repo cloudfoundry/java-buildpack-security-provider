@@ -35,19 +35,23 @@ final class TrustStoreDiagnostics {
     private TrustStoreDiagnostics() {
     }
 
-    // Reports the configuration as set, without interpreting it: the JDK does not expose which store it loaded, and its rules
-    // (defaults, empty or special values, store types) are internal. The certificate count shows what was actually loaded.
+    // Reports the trust store properties as set, without interpreting them: the JDK does not expose which store it loaded, and its
+    // rules (defaults, empty or special values, store types) are internal. The certificate count shows what was actually loaded.
+    // Returns null when neither property is set, which is the default and needs no logging.
     static String systemTrustStore() {
         return bestEffort(() -> {
-            String store = System.getProperty("javax.net.ssl.trustStore");
-            if (store == null) {
-                return "default JVM configuration (javax.net.ssl.trustStore not set)";
+            if (System.getProperty("javax.net.ssl.trustStore") == null && System.getProperty("javax.net.ssl.trustStoreType") == null) {
+                return null;
             }
 
-            String type = System.getProperty("javax.net.ssl.trustStoreType");
-            return String.format("default JVM configuration (javax.net.ssl.trustStore=%s, javax.net.ssl.trustStoreType=%s)",
-                    store, type != null ? type : "not set");
+            return String.format("javax.net.ssl.trustStore=%s, javax.net.ssl.trustStoreType=%s",
+                    valueOrNotSet("javax.net.ssl.trustStore"), valueOrNotSet("javax.net.ssl.trustStoreType"));
         });
+    }
+
+    private static String valueOrNotSet(String property) {
+        String value = System.getProperty(property);
+        return value != null ? value : "not set";
     }
 
     static String blocked() {

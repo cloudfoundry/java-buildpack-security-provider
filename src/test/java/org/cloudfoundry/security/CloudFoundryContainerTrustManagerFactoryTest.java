@@ -20,6 +20,11 @@ import org.junit.Test;
 
 import javax.net.ssl.TrustManager;
 import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -57,10 +62,22 @@ public final class CloudFoundryContainerTrustManagerFactoryTest extends Abstract
 
     // Logging the summary at INFO for every factory init (e.g. per new connection) was the problem fixed in #17.
     @Test
-    public void laterSystemTrustManagersLogSummaryAtFine() throws Exception {
-        recordSystemSummaryLevels();
+    public void logsSummaryAtInfoOnceThenAtFine() throws Exception {
+        String store = System.getProperty("javax.net.ssl.trustStore");
+        String type = System.getProperty("javax.net.ssl.trustStoreType");
+        System.clearProperty("javax.net.ssl.trustStore");
+        System.clearProperty("javax.net.ssl.trustStoreType");
+        List<LogRecord> records;
+        try {
+            records = recordSummaryOfTwoInitsInIsolatedClassLoader();
+        } finally {
+            restoreProperty("javax.net.ssl.trustStore", store);
+            restoreProperty("javax.net.ssl.trustStoreType", type);
+        }
 
-        assertThat(recordSystemSummaryLevels()).containsExactly(Level.FINE, Level.FINE, Level.FINE);
+        // With the default configuration there is no trust store line: only the count and the blocklist.
+        assertThat(records).extracting(LogRecord::getMessage).noneMatch(m -> m.startsWith("System trust store:"));
+        assertThat(records).extracting(LogRecord::getLevel).containsExactly(Level.INFO, Level.INFO, Level.FINE, Level.FINE);
     }
 
     @Test
@@ -97,7 +114,7 @@ public final class CloudFoundryContainerTrustManagerFactoryTest extends Abstract
         });
 
         assertThat(records).extracting(LogRecord::getMessage)
-                .contains("System trust store: default JVM configuration (javax.net.ssl.trustStore=" + cacerts + ", javax.net.ssl.trustStoreType=not set)");
+                .contains("System trust store: javax.net.ssl.trustStore=" + cacerts + ", javax.net.ssl.trustStoreType=not set");
     }
 
     @Test
@@ -117,13 +134,26 @@ public final class CloudFoundryContainerTrustManagerFactoryTest extends Abstract
         }
     }
 
-    private List<Level> recordSystemSummaryLevels() throws Exception {
-        List<Level> levels = new ArrayList<>();
-        for (LogRecord record : recordSystemSummary()) {
-            levels.add(record.getLevel());
-        }
+    // The once-per-JVM state is static, so a fresh class loader gives every run a clean state without test hooks in the main code.
+    private List<LogRecord> recordSummaryOfTwoInitsInIsolatedClassLoader() throws Exception {
+        URL classes = Paths.get("target/classes").toUri().toURL();
+        try (URLClassLoader isolated = new URLClassLoader(new URL[]{classes}, ClassLoader.getSystemClassLoader().getParent())) {
+            Class<?> factoryClass = isolated.loadClass(CloudFoundryContainerTrustManagerFactory.PKIXFactory.class.getName());
+            Constructor<?> constructor = factoryClass.getDeclaredConstructor(Path.class);
+            constructor.setAccessible(true);
+            Method init = factoryClass.getSuperclass().getDeclaredMethod("engineInit", KeyStore.class);
+            init.setAccessible(true);
+            Method getTrustManagers = factoryClass.getSuperclass().getDeclaredMethod("engineGetTrustManagers");
+            getTrustManagers.setAccessible(true);
 
-        return levels;
+            return filterSummary(LogRecorder.record(CloudFoundryContainerTrustManagerFactory.PKIXFactory.class, () -> {
+                for (int i = 0; i < 2; i++) {
+                    Object factory = constructor.newInstance((Path) null);
+                    init.invoke(factory, new Object[]{null});
+                    getTrustManagers.invoke(factory);
+                }
+            }));
+        }
     }
 
     private static void restoreProperty(String key, String value) {
@@ -141,6 +171,10 @@ public final class CloudFoundryContainerTrustManagerFactoryTest extends Abstract
             factory.engineGetTrustManagers();
         });
 
+        return filterSummary(records);
+    }
+
+    private static List<LogRecord> filterSummary(List<LogRecord> records) {
         List<LogRecord> summary = new ArrayList<>();
         for (LogRecord record : records) {
             String message = record.getMessage();
