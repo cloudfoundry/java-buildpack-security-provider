@@ -16,8 +16,8 @@
 
 package org.cloudfoundry.security;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
@@ -30,8 +30,13 @@ final class LogRecorder {
 
     // Records everything logged to the logger named after the given class while the action runs, at all levels.
     static List<LogRecord> record(Class<?> loggerClass, Action action) throws Exception {
+        return record(loggerClass, records -> action.run());
+    }
+
+    // Like record(Class, Action), but hands the live record list to the action so it can wait for asynchronous log output.
+    static List<LogRecord> record(Class<?> loggerClass, RecordingAction action) throws Exception {
         Logger logger = Logger.getLogger(loggerClass.getName());
-        List<LogRecord> records = new ArrayList<>();
+        List<LogRecord> records = new CopyOnWriteArrayList<>();
         Handler handler = new Handler() {
 
             @Override
@@ -53,13 +58,19 @@ final class LogRecorder {
         logger.addHandler(handler);
         logger.setLevel(Level.ALL);
         try {
-            action.run();
+            action.run(records);
         } finally {
             logger.removeHandler(handler);
             logger.setLevel(level);
         }
 
         return records;
+    }
+
+    interface RecordingAction {
+
+        void run(List<LogRecord> records) throws Exception;
+
     }
 
     interface Action {
