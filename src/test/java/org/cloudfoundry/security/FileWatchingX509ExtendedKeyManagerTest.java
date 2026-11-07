@@ -241,7 +241,7 @@ public final class FileWatchingX509ExtendedKeyManagerTest extends AbstractLoggin
 
     // The file watcher can install a new KeyManager between the two calls; aliases change on every load, so retry.
     private X509Certificate getLeafCertificate(FileWatchingX509ExtendedKeyManager keyManager) {
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 3; i++) {
             String[] aliases = keyManager.getClientAliases("RSA", null);
             if (aliases != null && aliases.length > 0) {
                 X509Certificate[] chain = keyManager.getCertificateChain(aliases[0]);
@@ -250,7 +250,7 @@ public final class FileWatchingX509ExtendedKeyManagerTest extends AbstractLoggin
                 }
             }
         }
-        throw new IllegalStateException("No client alias with a certificate chain after 100 attempts");
+        throw new IllegalStateException("No client alias with a certificate chain after 3 attempts");
     }
 
     private void replace(Path source, Path target) throws IOException {
