@@ -102,7 +102,9 @@ final class FileWatchingX509ExtendedKeyManager extends X509ExtendedKeyManager {
     @Override
     public X509Certificate[] getCertificateChain(String s) {
         X509ExtendedKeyManager keyManager = this.keyManager.get();
-        return keyManager != null ? keyManager.getCertificateChain(s) : null;
+        X509Certificate[] chain = keyManager != null ? keyManager.getCertificateChain(s) : null;
+        logUnknownAlias(keyManager, s, chain, "certificate chain");
+        return chain;
     }
 
     @Override
@@ -114,7 +116,18 @@ final class FileWatchingX509ExtendedKeyManager extends X509ExtendedKeyManager {
     @Override
     public PrivateKey getPrivateKey(String s) {
         X509ExtendedKeyManager keyManager = this.keyManager.get();
-        return keyManager != null ? keyManager.getPrivateKey(s) : null;
+        PrivateKey privateKey = keyManager != null ? keyManager.getPrivateKey(s) : null;
+        logUnknownAlias(keyManager, s, privateKey, "private key");
+        return privateKey;
+    }
+
+    // An alias is chosen and looked up in separate calls, and aliases change on every load. A reload in between would make the
+    // lookup fail. This is not expected to happen in practice; if it is ever logged, the lookup needs to be made reload-safe.
+    // The delegating key manager asks the system key manager first, so only aliases unknown to it reach this check.
+    private void logUnknownAlias(X509ExtendedKeyManager keyManager, String alias, Object found, String what) {
+        if (keyManager != null && alias != null && found == null) {
+            this.logger.severe(() -> String.format("Should not happen: no %s for alias %s, the KeyManager was probably reloaded between choosing and looking up the alias", what, alias));
+        }
     }
 
     @Override

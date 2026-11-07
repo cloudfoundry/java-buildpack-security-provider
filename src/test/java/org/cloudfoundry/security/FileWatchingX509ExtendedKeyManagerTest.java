@@ -152,6 +152,34 @@ public final class FileWatchingX509ExtendedKeyManagerTest extends AbstractLoggin
         assertThat(getLeafCertificate(keyManager)).isEqualTo(X509CertificateFactory.generate(Paths.get("src/test/resources/client-certificates-2.pem")).get(0));
     }
 
+    // A reload between choosing an alias and looking it up is not expected to cause trouble, but would make the lookup return null.
+    @Test
+    public void logsWhenAliasFromBeforeReloadIsNoLongerKnown() throws Exception {
+        Path watchedCertificates = getWatchedCertificatesFile();
+        Files.copy(Paths.get("src/test/resources/client-certificates-1.pem"), watchedCertificates);
+
+        Path watchedPrivateKey = getWatchedPrivateKeyFile();
+        Files.copy(Paths.get("src/test/resources/client-private-key-1.pem"), watchedPrivateKey);
+
+        FileWatchingX509ExtendedKeyManager keyManager = new FileWatchingX509ExtendedKeyManager(watchedCertificates, watchedPrivateKey, KeyManagerFactory.getInstance("SunX509"));
+        String staleAlias = keyManager.getClientAliases("RSA", null)[0];
+
+        replace(Paths.get("src/test/resources/client-private-key-2.pem"), watchedPrivateKey);
+        replace(Paths.get("src/test/resources/client-certificates-2.pem"), watchedCertificates);
+        keyManager.update();
+
+        String currentAlias = keyManager.getClientAliases("RSA", null)[0];
+        List<LogRecord> records = LogRecorder.record(FileWatchingX509ExtendedKeyManager.class, () -> {
+            assertThat(keyManager.getCertificateChain(currentAlias)).isNotNull();
+            assertThat(keyManager.getPrivateKey(currentAlias)).isNotNull();
+            assertThat(keyManager.getCertificateChain(staleAlias)).isNull();
+            assertThat(keyManager.getPrivateKey(staleAlias)).isNull();
+        });
+
+        assertThat(severe(records, "Should not happen:")).extracting(LogRecord::getMessage).hasSize(2)
+                .allMatch(m -> m.contains(staleAlias));
+    }
+
     @Test
     public void keepsCurrentWhenPrivateKeyDoesNotMatchCertificate() throws Exception {
         Path watchedCertificates = getWatchedCertificatesFile();
