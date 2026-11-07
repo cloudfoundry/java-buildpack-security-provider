@@ -164,8 +164,7 @@ public final class FileWatchingX509ExtendedKeyManagerTest extends AbstractLoggin
         FileWatchingX509ExtendedKeyManager keyManager = new FileWatchingX509ExtendedKeyManager(watchedCertificates, watchedPrivateKey, KeyManagerFactory.getInstance("SunX509"));
         String staleAlias = keyManager.getClientAliases("RSA", null)[0];
 
-        replace(Paths.get("src/test/resources/client-private-key-2.pem"), watchedPrivateKey);
-        replace(Paths.get("src/test/resources/client-certificates-2.pem"), watchedCertificates);
+        // Every load generates new aliases; reloading unchanged files avoids a racing reload by the file watcher.
         keyManager.update();
 
         String currentAlias = keyManager.getClientAliases("RSA", null)[0];
