@@ -16,8 +16,8 @@
 
 package org.cloudfoundry.security;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
@@ -31,7 +31,7 @@ final class LogRecorder {
     // Records everything logged to the logger named after the given class while the action runs, at all levels.
     static List<LogRecord> record(Class<?> loggerClass, Action action) throws Exception {
         Logger logger = Logger.getLogger(loggerClass.getName());
-        List<LogRecord> records = new ArrayList<>();
+        List<LogRecord> records = new CopyOnWriteArrayList<>();
         Handler handler = new Handler() {
 
             @Override
