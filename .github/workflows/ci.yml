@@ -32,7 +32,7 @@ jobs:
 
       # The shipped jar must stay Java 8 bytecode, so build and test with Java 8 too.
       - name: Set up Java 8
-        uses: actions/setup-java@v6.1.0
+        uses: actions/setup-java@v6.2.0
         with:
           java-version: '8'
           distribution: 'temurin'
@@ -62,7 +62,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
 
       - name: Set up Java 8
-        uses: actions/setup-java@v6.1.0
+        uses: actions/setup-java@v6.2.0
         with:
           java-version: '8'
           distribution: 'temurin'
